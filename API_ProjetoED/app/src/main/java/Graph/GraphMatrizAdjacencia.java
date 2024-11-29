@@ -1,37 +1,50 @@
 package Graph;
 
 import ArrayList.ArrayUnorderedList;
-import Exceptions.ElementNotFoundException;
 import Exceptions.EmptyCollectionException;
 import Interfaces.GraphADT;
-import LinkedList.LinearLinkedOrderedList;
-import LinkedList.LinearLinkedUnorderedList;
 import Queue.LinkedQueue;
 import Stacks.LinkedStack;
 import java.util.Iterator;
 
-public class GraphListaAdjacencia<T> implements GraphADT<T> {
+/**
+ * Graph represents an adjacency matrix implementation of a graph.
+ *
+ * @param <T>
+ */
+public class GraphMatrizAdjacencia<T> implements GraphADT<T> {
 
     protected final int DEFAULT_CAPACITY = 10;
 
-    protected T[] vertices; // Array de vértices
+    protected int numVertices; // number of vertices in the graph
 
-    protected LinearLinkedOrderedList<T>[] listaAdj; // Lista de adjacência como array de ListaLigada
+    protected boolean[][] adjMatrix; // adjacency matrix
 
-    protected int numVertices; // Número atual de vértices
+    protected T[] vertices; // values of vertices
 
-    public GraphListaAdjacencia() {
+    /**
+     * Creates an empty graph.
+     */
+    public GraphMatrizAdjacencia() {
         numVertices = 0;
-        this.listaAdj = new LinearLinkedOrderedList[DEFAULT_CAPACITY];
+        this.adjMatrix = new boolean[DEFAULT_CAPACITY][DEFAULT_CAPACITY];
         this.vertices = (T[]) (new Object[DEFAULT_CAPACITY]);
     }
 
+    //Teste (Fazer para o Network)
     protected void expandCapacity() {
         T[] temp = (T[]) (new Object[(this.vertices.length * 2)]);
 
         System.arraycopy(this.vertices, 0, temp, 0, this.vertices.length);
         this.vertices = temp;
-       
+
+        boolean[][] tempMatriz = new boolean[this.vertices.length * 2][this.vertices.length * 2];
+
+        for (int i = 0; i < this.adjMatrix.length; i++) {
+            System.arraycopy(this.adjMatrix[i], 0, tempMatriz[i], 0, this.adjMatrix[i].length);
+        }
+
+        this.adjMatrix = tempMatriz;
     }
 
     /**
@@ -46,28 +59,26 @@ public class GraphListaAdjacencia<T> implements GraphADT<T> {
             expandCapacity();
         }
 
-        this.listaAdj[numVertices] = new LinearLinkedOrderedList<>();
         vertices[numVertices] = vertex;
+
+        for (int i = 0; i <= numVertices; i++) {
+            adjMatrix[numVertices][i] = false;
+            adjMatrix[i][numVertices] = false;
+        }
 
         numVertices++;
     }
 
-    //Testar bem (Ver se no while basta apenas ter o != null)
     @Override
-    public void removeVertex(T vertex) throws ElementNotFoundException {
+    public void removeVertex(T vertex) throws EmptyCollectionException {
         int indexVertex = getIndex(vertex);
 
-        if(indexVertex == -1) {
+        if (indexVertex == -1) {
             throw new EmptyCollectionException("O vertice que introduziu não existe");
         }
-        
-        while (!this.listaAdj[indexVertex].isEmpty()) {
-            T element = this.listaAdj[indexVertex].removeFirst();
-            int index = getIndex(element);
 
-            if (indexIsValid(index)) {
-                this.listaAdj[index].remove(vertex);
-            }
+        for (int i = 0; i <= numVertices; i++) {
+            removeEdge(indexVertex, i);
         }
 
         this.vertices[indexVertex] = null;
@@ -75,11 +86,11 @@ public class GraphListaAdjacencia<T> implements GraphADT<T> {
 
         for (int i = indexVertex; i < numVertices; i++) {
             this.vertices[i] = this.vertices[i + 1];
-            this.listaAdj[i] = this.listaAdj[i + 1];
+            this.adjMatrix[i] = this.adjMatrix[i + 1];
         }
 
         this.vertices[numVertices] = null;
-        this.listaAdj[numVertices] = null;
+        this.adjMatrix[numVertices] = null;
     }
 
     protected int getIndex(T vertex) {
@@ -134,21 +145,42 @@ public class GraphListaAdjacencia<T> implements GraphADT<T> {
      * @param vertex2 the second vertex
      */
     @Override
-    public void addEdge(T vertex1, T vertex2) {      
-        if (indexIsValid(vertex1) && indexIsValid(vertex2)) {
-            this.listaAdj[getIndex(vertex1)].add(vertex2);
-            this.listaAdj[getIndex(vertex2)].add(vertex1);
+    public void addEdge(T vertex1, T vertex2) {
+        addEdge(getIndex(vertex1), getIndex(vertex2));
+    }
+
+    /**
+     * Inserts an edge between two vertices of the graph.
+     *
+     * @param index1 the first index
+     * @param index2 the second index
+     */
+    public void addEdge(int index1, int index2) {
+        if (indexIsValid(index1) && indexIsValid(index2)) {
+            adjMatrix[index1][index2] = true;
+            adjMatrix[index2][index1] = true;
         }
     }
 
     @Override
     public void removeEdge(T vertex1, T vertex2) {
-        if (indexIsValid(vertex1) && indexIsValid(vertex2)) {
-            this.listaAdj[getIndex(vertex1)].remove(vertex2);
-            this.listaAdj[getIndex(vertex2)].remove(vertex1);
+        removeEdge(getIndex(vertex1), getIndex(vertex1));
+    }
+
+    public void removeEdge(int index1, int index2) {
+        if (indexIsValid(index1) && indexIsValid(index2)) {
+            adjMatrix[index1][index2] = false;
+            adjMatrix[index2][index1] = false;
         }
     }
 
+    /**
+     * Returns an iterator that performs a breadth first search traversal
+     * starting at the given index.
+     *
+     * @param startVertex the index to begin the search from
+     * @return an iterator that performs a breadth first traversal
+     */
     @Override
     public Iterator iteratorBFS(T startVertex) {
         int indexVertex = getIndex(startVertex);
@@ -176,18 +208,10 @@ public class GraphListaAdjacencia<T> implements GraphADT<T> {
              * Find all vertices adjacent to x that have not been visited and
              * queue them up
              */
-            
-            if (listaAdj[x.intValue()] != null) {
-                Iterator<T> itr = listaAdj[x.intValue()].iterator();
-
-                while (itr.hasNext()) {
-                    T element = itr.next();                    
-                    int index = getIndex(element);
-                    
-                    if (indexIsValid(index) && !visited[index]) {
-                        traversalQueue.enqueue(new Integer(index));
-                        visited[index] = true;
-                    }
+            for (int i = 0; i < numVertices; i++) {
+                if (adjMatrix[x.intValue()][i] && !visited[i]) {
+                    traversalQueue.enqueue(new Integer(i));
+                    visited[i] = true;
                 }
             }
         }
@@ -195,6 +219,13 @@ public class GraphListaAdjacencia<T> implements GraphADT<T> {
         return resultList.iterator();
     }
 
+    /**
+     * Returns an iterator that performs a depth first search traversal starting
+     * at the given index.
+     *
+     * @param startVertex the index to begin the search traversal from
+     * @return an iterator that performs a depth first traversal
+     */
     @Override
     public Iterator iteratorDFS(T startVertex) {
         Integer x;
@@ -223,23 +254,14 @@ public class GraphListaAdjacencia<T> implements GraphADT<T> {
              * Find a vertex adjacent to x that has not been visited and push it
              * on the stack
              */
-            
-            if (listaAdj[x.intValue()] != null) {
-                Iterator<T> itr = listaAdj[x.intValue()].iterator();
-
-                while (itr.hasNext() && !found) {
-                    T element = itr.next();                    
-                    int index = getIndex(element);
-                    
-                    if (indexIsValid(index) && !visited[index]) {
-                        traversalStack.push(new Integer(index));
-                        resultList.addToRear(vertices[index]);
-                        visited[index] = true;
-                        found = true;
-                    }
+            for (int i = 0; (i < numVertices) && !found; i++) {
+                if (adjMatrix[x.intValue()][i] && !visited[i]) {
+                    traversalStack.push(new Integer(i));
+                    resultList.addToRear(vertices[i]);
+                    visited[i] = true;
+                    found = true;
                 }
             }
-            
             if (!found && !traversalStack.isEmpty()) {
                 traversalStack.pop();
             }
@@ -248,9 +270,54 @@ public class GraphListaAdjacencia<T> implements GraphADT<T> {
         return resultList.iterator();
     }
 
+    //Testar!!!!!!
     @Override
     public Iterator iteratorShortestPath(T startVertex, T targetVertex) {
-        throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
+        int indexVertex = getIndex(startVertex);
+        int indexFinal = getIndex(targetVertex);
+        Integer x;
+        LinkedQueue<Integer> traversalQueue = new LinkedQueue<>();
+        ArrayUnorderedList<T> resultList = new ArrayUnorderedList<>();
+        
+        T previous[] = (T[])(new Object[this.numVertices + 1]);
+        int comprimento[] = new int[this.numVertices];     
+        
+        if (!indexIsValid(startVertex)) {
+            return resultList.iterator();
+        }
+
+        boolean[] visited = new boolean[numVertices];
+
+        for (int i = 0; i < numVertices; i++) {
+            visited[i] = false;
+        }
+
+        traversalQueue.enqueue(new Integer(indexVertex));
+        visited[indexVertex] = true;
+        //Até aqui em cima guardar tudo
+
+        int i = 0;
+        while (!traversalQueue.isEmpty() && traversalQueue.first() != indexFinal) {
+            x = traversalQueue.dequeue();
+            //previous[i+1] = x;
+            
+            resultList.addToRear(vertices[x.intValue()]);
+            /**
+             * Find all vertices adjacent to x that have not been visited and
+             * queue them up
+             */
+           /*
+             for (int i = 0; i < numVertices; i++) {
+                if (adjMatrix[x.intValue()][i] && !visited[i]) {
+                    traversalQueue.enqueue(new Integer(i));
+                    visited[i] = true;
+                }
+            }
+            
+            comprimento++;
+            */
+        }
+        return resultList.iterator();
     }
 
     @Override
@@ -290,5 +357,4 @@ public class GraphListaAdjacencia<T> implements GraphADT<T> {
     public int size() {
         return this.numVertices;
     }
-
 }

@@ -18,7 +18,7 @@ public interface ListADT<T> extends Iterable<T> {
      * Removes and returns the first element from this list.
      *
      * @return the first element from this list
-     * @throws Exceptions.EmptyCollectionException
+     * @throws EmptyCollectionException
      */
     public T removeFirst() throws EmptyCollectionException;
 
@@ -26,7 +26,7 @@ public interface ListADT<T> extends Iterable<T> {
      * Removes and returns the last element from this list.
      *
      * @return the last element from this list
-     * @throws Exceptions.EmptyCollectionException
+     * @throws EmptyCollectionException
      */
     public T removeLast() throws EmptyCollectionException;
 
@@ -35,7 +35,7 @@ public interface ListADT<T> extends Iterable<T> {
      *
      * @param element the element to be removed from the list
      * @return the removed element
-     * @throws Exceptions.EmptyCollectionException
+     * @throws EmptyCollectionException
      */
     public T remove(T element) throws EmptyCollectionException, ElementNotFoundException;
 

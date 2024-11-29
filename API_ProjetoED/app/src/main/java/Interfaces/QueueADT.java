@@ -20,7 +20,7 @@ public interface QueueADT<T> {
      * Removes and returns the element at the front of this queue.
      *
      * @return the element at the front of this queue
-     * @throws Exceptions.EmptyCollectionException
+     * @throws EmptyCollectionException
      */
     public T dequeue() throws EmptyCollectionException;
 
@@ -28,7 +28,7 @@ public interface QueueADT<T> {
      * Returns without removing the element at the front of this queue.
      *
      * @return the first element in this queue
-     * @throws Exceptions.EmptyCollectionException
+     * @throws EmptyCollectionException
      */
     public T first() throws EmptyCollectionException;
 

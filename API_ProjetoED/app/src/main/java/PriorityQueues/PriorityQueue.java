@@ -33,7 +33,7 @@ public class PriorityQueue<T> extends ArrayHeap<PriorityQueueNode<T>> {
      * returns a reference to it.
      *
      * @return a reference to the next highest priority element in this queue
-     * @throws Exceptions.EmptyCollectionException
+     * @throws EmptyCollectionException
      */
     public T removeNext() throws EmptyCollectionException {
         if(this.count == 0) {
