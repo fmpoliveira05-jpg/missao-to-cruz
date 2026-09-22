@@ -1,0 +1,34 @@
+subprojects {
+    apply plugin: 'java'
+
+    group = 'tocruz'
+    version = '2.0.0'
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        testImplementation platform('org.junit:junit-bom:5.10.2')
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.release = 17
+    }
+
+    tasks.withType(Javadoc).configureEach {
+        options.encoding = 'UTF-8'
+        failOnError = false
+    }
+
+    test {
+        useJUnitPlatform()
+        testLogging {
+            events 'failed'
+            exceptionFormat 'full'
+        }
+    }
+}

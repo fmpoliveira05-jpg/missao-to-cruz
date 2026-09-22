@@ -1,0 +1,29 @@
+apply plugin: 'application'
+
+description = 'Aplicação de consola do simulador'
+
+dependencies {
+    implementation project(':jogo')
+}
+
+application {
+    mainClass = 'tocruz.app.MenuMissoes'
+}
+
+// `./gradlew :app:run` corre dentro da pasta app/ (onde está a pasta missoes/) e lê o teclado.
+run {
+    standardInput = System.in
+    workingDir = projectDir
+}
+
+// `./gradlew :app:jar` gera um único .jar executável com todas as dependências.
+jar {
+    archiveFileName = 'missao-to-cruz.jar'
+    manifest {
+        attributes 'Main-Class': 'tocruz.app.MenuMissoes'
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}

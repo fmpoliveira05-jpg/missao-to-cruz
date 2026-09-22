@@ -1,0 +1,3 @@
+// Biblioteca de estruturas de dados sem dependências externas.
+// (O enunciado não permitia usar a Java Collections Framework.)
+description = 'Estruturas de dados desenvolvidas na UC de Estruturas de Dados'

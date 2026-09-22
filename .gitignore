@@ -1,2 +1,19 @@
-/Menu/nbproject/private/
-/RecursosJogo/nbproject/private/
+# Gradle
+.gradle/
+build/
+out/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+nbproject/private/
+
+# Ficheiros gerados pela aplicação
+app/exportacoes/
+exportacoes/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini

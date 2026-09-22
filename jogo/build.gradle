@@ -1,0 +1,11 @@
+apply plugin: 'java-library'
+
+description = 'Regras e modelo do simulador de missões'
+
+dependencies {
+    // As interfaces das coleções aparecem na API pública do jogo, por isso são "api".
+    api project(':estruturas-dados')
+    implementation('com.googlecode.json-simple:json-simple:1.1.1') {
+        exclude group: 'junit', module: 'junit'
+    }
+}

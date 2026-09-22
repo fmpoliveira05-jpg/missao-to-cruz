@@ -1,0 +1,6 @@
+rootProject.name = 'missao-to-cruz'
+
+// estruturas-dados: coleções implementadas nas aulas (listas, pilhas, filas, árvores, grafos)
+// jogo:             regras do simulador (mapa, personagens, itens, simulações, importação/exportação)
+// app:              menu de consola que junta tudo
+include 'estruturas-dados', 'jogo', 'app'
