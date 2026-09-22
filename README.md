@@ -15,6 +15,8 @@ Trabalho prático de grupo de **Estruturas de Dados** (2.º ano da Licenciatura 
 
 O histórico de *commits* original foi mantido, por isso o contributo de cada um continua visível no separador *Commits*.
 
+**O meu papel:** trabalhei sobretudo na lógica da simulação — movimento e ataque dos inimigos, combate e uso de kits de recuperação pelo Tó Cruz — e no modo automático, que escolhe a melhor entrada e o caminho até ao alvo e de volta pelo grafo pesado com o dano esperado; tratei também da documentação Javadoc. Na revisão de 2026 reorganizei o projeto em Gradle multi-módulo, corrigi a importação, a exportação e o menu e acrescentei a listagem dos resultados de todas as versões de uma missão.
+
 ## O enunciado em poucas palavras
 
 A IMF quer um simulador para o Tó Cruz treinar as missões antes de as fazer. Cada missão vem num ficheiro JSON com as divisões do edifício, as ligações entre elas, os inimigos (e o seu poder de ataque), as entradas/saídas, a posição do alvo e os itens espalhados pelo edifício (kits de vida e coletes).
