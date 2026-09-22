@@ -58,7 +58,7 @@ O projeto é um *build* Gradle com três módulos:
 
 ```
 estruturas-dados/   biblioteca de coleções (pacotes ed.*)            142 testes
-jogo/               modelo e regras do simulador (pacotes tocruz.*)    43 testes
+jogo/               modelo e regras do simulador (pacotes tocruz.*)    46 testes
 app/                menu de consola; missoes/ tem o ficheiro de exemplo
 ```
 
@@ -69,7 +69,7 @@ Requisitos: **Java 17** ou superior. Não é preciso instalar o Gradle, o *wrapp
 ```bash
 git clone https://github.com/fmpoliveira05-jpg/missao-to-cruz.git
 cd missao-to-cruz
-./gradlew build                      # compila e corre os 185 testes (no Windows: gradlew.bat build)
+./gradlew build                      # compila e corre os 188 testes (no Windows: gradlew.bat build)
 ./gradlew :app:run --console=plain   # arranca o simulador
 ```
 
@@ -85,7 +85,7 @@ cd app && java -jar build/libs/missao-to-cruz.jar
 1. `1` – importar missão → escrever `missao-exemplo`.
 2. `3` – ver o mapa, para perceber onde estão os inimigos, os itens e o alvo (um laboratório com uma arma química).
 3. `2` – jogar → escolher a missão → `1` (modo manual). Escolhe-se a entrada e, a cada turno, a divisão seguinte. Quando há inimigos na sala escolhe-se entre atacar ou usar um kit.
-4. `4` – ver os resultados das tentativas, da melhor para a pior.
+4. `4` – ver os resultados das tentativas de todas as versões dessa missão, da melhor para a pior (com a versão de cada uma).
 5. `5` – exportar os trajetos para `app/exportacoes/`.
 
 ## O que mudou na revisão de 2026

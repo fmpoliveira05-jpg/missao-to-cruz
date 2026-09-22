@@ -1,6 +1,8 @@
 package tocruz.app;
 
+import ed.interfaces.OrderedListADT;
 import ed.interfaces.UnorderedListADT;
+import ed.linkedlist.LinearLinkedOrderedList;
 import ed.linkedlist.LinearLinkedUnorderedList;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -10,6 +12,8 @@ import tocruz.exportar.ExportarDado;
 import tocruz.importar.ImportarMapa;
 import tocruz.missoes.Missao;
 import tocruz.missoes.Missoes;
+import tocruz.missoes.ResultadoSimulacao;
+import tocruz.missoes.Simulacoes;
 import tocruz.util.Consola;
 
 /**
@@ -160,18 +164,33 @@ public final class MenuMissoes {
         }
     }
 
+    /**
+     * Mostra, para o código de missão escolhido, as simulações manuais de todas as versões,
+     * ordenadas pelos pontos de vida restantes do Tó Cruz (com a versão de cada uma).
+     */
     private void verResultados() {
-        Missao missao = escolherMissao();
-        if (missao == null) {
+        Missao escolhida = escolherMissao();
+        if (escolhida == null) {
             return;
         }
-        if (missao.getTot_simulacoes() == 0) {
-            System.out.println("Esta versão ainda não tem simulações manuais.");
+        String codigo = escolhida.getcod_missao();
+        OrderedListADT<ResultadoSimulacao> resultados = new LinearLinkedOrderedList<>();
+        for (Missao missao : this.missoes.getListaMissao()) {
+            if (missao.getcod_missao().equals(codigo)) {
+                for (Simulacoes simulacao : missao.getSimulacoes()) {
+                    resultados.add(new ResultadoSimulacao(missao.getVersao(), simulacao));
+                }
+            }
+        }
+        if (resultados.isEmpty()) {
+            System.out.println("A missão \"" + codigo + "\" ainda não tem simulações manuais.");
             return;
         }
-        System.out.println("Resultados da missão \"" + missao.getcod_missao() + "\", versão " + missao.getVersao()
+        System.out.println("Resultados da missão \"" + codigo + "\", todas as versões"
                 + " (ordenados pela vida restante do Tó Cruz):");
-        missao.viewSimulacoes();
+        for (ResultadoSimulacao resultado : resultados) {
+            System.out.println("  " + resultado);
+        }
     }
 
     /**
