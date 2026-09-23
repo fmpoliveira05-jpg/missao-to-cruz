@@ -1,8 +1,8 @@
 package ed.graph;
 
-import ed.interfaces.*;
+import ed.interfaces.NetworkMatrizADT;
+import ed.interfaces.UnorderedListADT;
 import ed.linkedlist.LinearLinkedUnorderedList;
-import ed.linkedtree.LinkedHeap;
 
 import java.util.Iterator;
 
@@ -53,7 +53,7 @@ public class Network<T> extends NetworkMatrizAdjacencia<T> implements NetworkMat
     private double getWeightEdge(int vertex, int vertex2) {
         double weight = 0;
 
-        if(indexIsValid(vertex) || indexIsValid(vertex2)) {
+        if (indexIsValid(vertex) && indexIsValid(vertex2)) {
             weight = this.adjMatrix[vertex][vertex2];
         } else {
             weight = Double.POSITIVE_INFINITY;
@@ -63,107 +63,66 @@ public class Network<T> extends NetworkMatrizAdjacencia<T> implements NetworkMat
     }
 
     /**
-     * Atualiza o peso das arestas conectadas ao vértice fornecido.
+     * Define o custo de <b>entrar</b> no vértice fornecido, vindo de qualquer vizinho.
      *
-     * @param vertex O vértice cujas arestas serão atualizadas.
-     * @param weight O novo peso para as arestas conectadas ao vértice.
+     * <p>Só as arestas que chegam ao vértice ({@code vizinho → vertex}) são alteradas; as que saem
+     * dele mantêm o custo de entrar nos vizinhos. No jogo, o custo de uma divisão é o poder total dos
+     * inimigos que lá estão: é esse o dano que o Tó Cruz sofre ao entrar. A versão original escrevia o
+     * mesmo valor nos dois sentidos, pelo que o custo de uma ligação dependia da última divisão
+     * atualizada e sair de uma sala perigosa custava tanto como entrar nela.</p>
+     *
+     * @param vertex O vértice cujo custo de entrada é atualizado.
+     * @param weight O novo custo de entrada.
      */
     @Override
     public void updateWeightEdge(T vertex, double weight) {
-        int index1 = getIndex(vertex);
+        int destino = getIndex(vertex);
 
-        if (indexIsValid(index1)) {
-            Iterator<T> itr = this.iteratorNextVertexs(vertex);
-
-            while (itr.hasNext()) {
-                T element = itr.next();
-                int index2 = getIndex(element);
-
-                if(indexIsValid(index2)) {
-                    this.adjMatrix[index1][index2] = weight;
-                    this.adjMatrix[index2][index1] = weight;
+        if (indexIsValid(destino)) {
+            for (int origem = 0; origem < numVertices; origem++) {
+                if (this.adjMatrix[origem][destino] != Double.POSITIVE_INFINITY) {
+                    this.adjMatrix[origem][destino] = weight;
                 }
             }
         }
     }
 
     /**
-     * Calcula o caminho mais curto entre dois vértices utilizando o algoritmo de Dijkstra.
+     * Calcula o caminho de menor custo entre dois vértices (algoritmo de Dijkstra).
      *
      * @param startVertex O vértice de origem.
      * @param finalVertex O vértice de destino.
-     * @return Um iterador contendo os vértices do caminho mais curto,
+     * @return Um iterador com os vértices do caminho, da origem ao destino,
      * ou um iterador vazio se não houver caminho.
      */
     @Override
     public Iterator<T> shortestPath(T startVertex, T finalVertex) {
-        UnorderedListADT<T> listResult = new LinearLinkedUnorderedList<>();
+        UnorderedListADT<T> caminho = new LinearLinkedUnorderedList<>();
         int startIndex = getIndex(startVertex);
         int finalIndex = getIndex(finalVertex);
 
         if (!indexIsValid(startIndex) || !indexIsValid(finalIndex)) {
-            return listResult.iterator();
+            return caminho.iterator();
         }
 
-        double[] distances = new double[numVertices];
-        int[] predecessors = new int[numVertices];
-        boolean[] visited = new boolean[numVertices];
-        HeapADT<T> minHeap = new LinkedHeap<>();
-
-        for (int i = 0; i < numVertices; i++) {
-            distances[i] = Double.MAX_VALUE;
-            predecessors[i] = -1;
-            visited[i] = false;
+        CaminhosMinimos minimos = dijkstra(startIndex);
+        if (minimos.distancias[finalIndex] == Double.MAX_VALUE) {
+            return caminho.iterator();
         }
 
-        distances[startIndex] = 0;
-        minHeap.addElement(startVertex);
-
-        while (!minHeap.isEmpty()) {
-            T currentVertex = minHeap.removeMin();
-            int currentIndex = getIndex(currentVertex);
-
-            if (indexIsValid(currentIndex) && !visited[currentIndex]) {
-                visited[currentIndex] = true;
-
-                Iterator<T> itr = this.iteratorNextVertexs(currentVertex);
-                while (itr.hasNext()) {
-                    T element = itr.next();
-                    int neighborIndex = getIndex(element);
-
-                    if (indexIsValid(neighborIndex) && !visited[neighborIndex]) {
-                        double newDistance = distances[currentIndex] + this.adjMatrix[currentIndex][neighborIndex];
-
-                        if (newDistance < distances[neighborIndex]) {
-                            distances[neighborIndex] = newDistance;
-                            predecessors[neighborIndex] = currentIndex;
-                            minHeap.addElement(element);
-                        }
-                    }
-                }
-            }
+        for (int passo = finalIndex; passo != -1; passo = minimos.antecessores[passo]) {
+            caminho.addToFront(this.vertices[passo]);
         }
 
-        if (distances[finalIndex] == Double.MAX_VALUE) {
-            return new LinearLinkedUnorderedList<T>().iterator();
-        }
-
-        int step = finalIndex;
-
-        while (step != -1) {
-            listResult.addToFront(this.vertices[step]);
-            step = predecessors[step];
-        }
-
-        return listResult.iterator();
+        return caminho.iterator();
     }
 
     /**
-     * Retorna o número mínimo de arestas entre dois vértices utilizando o algoritmo de Dijkstra.
+     * Número de arestas do caminho de menor custo entre dois vértices.
      *
      * @param startVertex O vértice de origem.
      * @param finalVertex O vértice de destino.
-     * @return O número mínimo de arestas entre os vértices, ou infinito positivo se não houver caminho.
+     * @return O número de arestas desse caminho, ou {@link Double#MAX_VALUE} se não houver caminho.
      */
     @Override
     public double shortestPathArest(T startVertex, T finalVertex) {
@@ -174,50 +133,11 @@ public class Network<T> extends NetworkMatrizAdjacencia<T> implements NetworkMat
             return Double.MAX_VALUE;
         }
 
-        double[] distances = new double[numVertices];
-        int[] num_arestas = new int[numVertices];
-        boolean[] visited = new boolean[numVertices];
-        HeapADT<T> minHeap = new LinkedHeap<>();
-
-        for (int i = 0; i < numVertices; i++) {
-            distances[i] = Double.MAX_VALUE;
-            num_arestas[i] = -1;
-            visited[i] = false;
-        }
-
-        distances[startIndex] = 0;
-        num_arestas[startIndex] = 0;
-        minHeap.addElement(startVertex);
-
-        while (!minHeap.isEmpty()) {
-            T currentVertex = minHeap.removeMin();
-            int currentIndex = getIndex(currentVertex);
-
-            if (indexIsValid(currentIndex) && !visited[currentIndex]) {
-                visited[currentIndex] = true;
-
-                Iterator<T> itr = this.iteratorNextVertexs(currentVertex);
-                while (itr.hasNext()) {
-                    T element = itr.next();
-                    int neighborIndex = getIndex(element);
-
-                    if (indexIsValid(neighborIndex) && !visited[neighborIndex]) {
-                        double newDistance = distances[currentIndex] + this.adjMatrix[currentIndex][neighborIndex];
-
-                        if (newDistance < distances[neighborIndex]) {
-                            distances[neighborIndex] = newDistance;
-                            num_arestas[neighborIndex] = num_arestas[currentIndex] + 1;
-                            minHeap.addElement(element);
-                        }
-                    }
-                }
-            }
-        }
-
-        if (distances[finalIndex] == Double.MAX_VALUE) {
+        CaminhosMinimos minimos = dijkstra(startIndex);
+        if (minimos.distancias[finalIndex] == Double.MAX_VALUE) {
             return Double.MAX_VALUE;
         }
 
-        return num_arestas[finalIndex];
+        return minimos.arestas[finalIndex];
     }
 }

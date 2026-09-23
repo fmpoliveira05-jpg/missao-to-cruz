@@ -1,10 +1,10 @@
 package ed.graph;
 
 import ed.arraylist.ArrayUnorderedList;
-import ed.interfaces.HeapADT;
 import ed.interfaces.NetworkADT;
 import ed.interfaces.UnorderedListADT;
 import ed.linkedtree.LinkedHeap;
+import ed.priorityqueues.PriorityQueue;
 
 import java.util.Iterator;
 
@@ -48,7 +48,8 @@ public class NetworkMatrizAdjacencia<T> extends GraphMatrizAdjacencia<T> impleme
      */
     protected void expandadweightMatrix() {
         super.expandCapacity();
-        double[][] tempMatriz = new double[this.vertices.length * 2][this.vertices.length * 2];
+        // super.expandCapacity() já duplicou o array de vértices; a matriz acompanha esse tamanho.
+        double[][] tempMatriz = new double[this.vertices.length][this.vertices.length];
 
         for (int i = 0; i < tempMatriz.length; i++) {
             for (int j = 0; j < tempMatriz.length; j++) {
@@ -144,54 +145,93 @@ public class NetworkMatrizAdjacencia<T> extends GraphMatrizAdjacencia<T> impleme
             return Double.MAX_VALUE;
         }
 
-        double[] distances = new double[numVertices];
-        boolean[] visited = new boolean[numVertices];
-        HeapADT<T> minHeap = new LinkedHeap<>();
+        return dijkstra(startIndex).distancias[finalIndex];
+    }
+
+    /**
+     * Resultado do algoritmo de Dijkstra a partir de um vértice de origem.
+     * Os três arrays são indexados pela posição do vértice na rede.
+     */
+    protected static final class CaminhosMinimos {
+
+        /**
+         * Custo mínimo desde a origem ({@link Double#MAX_VALUE} se o vértice não for alcançável).
+         */
+        protected final double[] distancias;
+
+        /**
+         * Índice do vértice anterior no caminho mínimo (-1 na origem e nos vértices não alcançáveis).
+         */
+        protected final int[] antecessores;
+
+        /**
+         * Número de arestas do caminho mínimo encontrado (-1 nos vértices não alcançáveis).
+         */
+        protected final int[] arestas;
+
+        private CaminhosMinimos(int n) {
+            this.distancias = new double[n];
+            this.antecessores = new int[n];
+            this.arestas = new int[n];
+        }
+    }
+
+    /**
+     * Algoritmo de Dijkstra sobre a matriz de pesos.
+     *
+     * <p>A fila de prioridade é ordenada pela distância provisória de cada vértice. Na versão
+     * original a heap guardava os próprios vértices e ordenava-os pelo {@code compareTo} do tipo
+     * {@code T} (no jogo, o id da divisão), pelo que os vértices eram fechados por ordem de id e
+     * não por distância, e os caminhos devolvidos podiam não ser os mais baratos.</p>
+     *
+     * <p>Um vértice pode entrar várias vezes na fila (sempre que a sua distância melhora); as
+     * entradas antigas são ignoradas quando saem, porque o vértice já está fechado.
+     * Complexidade: O(V² + E log E) com matriz de adjacência. Os pesos têm de ser não negativos.</p>
+     *
+     * @param origem índice do vértice de partida
+     * @return distâncias, antecessores e número de arestas dos caminhos mínimos
+     */
+    protected CaminhosMinimos dijkstra(int origem) {
+        CaminhosMinimos resultado = new CaminhosMinimos(numVertices);
+        boolean[] fechado = new boolean[numVertices];
 
         for (int i = 0; i < numVertices; i++) {
-            distances[i] = Double.MAX_VALUE;
-            visited[i] = false;
+            resultado.distancias[i] = Double.MAX_VALUE;
+            resultado.antecessores[i] = -1;
+            resultado.arestas[i] = -1;
         }
+        resultado.distancias[origem] = 0;
+        resultado.arestas[origem] = 0;
 
-        distances[startIndex] = 0;
-        minHeap.addElement(startVertex);
+        PriorityQueue<Integer> fila = new PriorityQueue<>();
+        fila.addElement(origem, 0.0);
 
-        while (!minHeap.isEmpty()) {
-            T currentVertex = minHeap.removeMin();
-            int currentIndex = getIndex(currentVertex);
+        while (!fila.isEmpty()) {
+            int atual = fila.removeNext();
 
-            if (indexIsValid(currentIndex) && !visited[currentIndex]) {
-                visited[currentIndex] = true;
+            if (!fechado[atual]) {
+                fechado[atual] = true;
 
-                Iterator<T> itr = this.iteratorNextVertexs(currentVertex);
-                while (itr.hasNext()) {
-                    T element = itr.next();
-                    int neighborIndex = getIndex(element);
+                for (int vizinho = 0; vizinho < numVertices; vizinho++) {
+                    double peso = this.adjMatrix[atual][vizinho];
 
-                    if (indexIsValid(neighborIndex) && !visited[neighborIndex]) {
-                        double newDistance = distances[currentIndex] + this.adjMatrix[currentIndex][neighborIndex];
+                    if (!fechado[vizinho] && peso != Double.POSITIVE_INFINITY) {
+                        double novaDistancia = resultado.distancias[atual] + peso;
 
-                        if (newDistance < distances[neighborIndex]) {
-                            distances[neighborIndex] = newDistance;
-                            minHeap.addElement(element);
+                        if (novaDistancia < resultado.distancias[vizinho]) {
+                            resultado.distancias[vizinho] = novaDistancia;
+                            resultado.antecessores[vizinho] = atual;
+                            resultado.arestas[vizinho] = resultado.arestas[atual] + 1;
+                            fila.addElement(vizinho, novaDistancia);
                         }
                     }
                 }
             }
         }
 
-        if (distances[finalIndex] == Double.MAX_VALUE) {
-            return Double.MAX_VALUE;
-        }
-
-        return distances[finalIndex];
+        return resultado;
     }
 
-    /**
-     * Retorna um iterador para os vértices do grafo utilizando uma pesquisa em profundidade (DFS).
-     *
-     * @return um iterador para os vértices do grafo
-     */
     @Override
     public Iterator<T> iterator() {
         return super.iteratorDFS(this.vertices[0]);
@@ -208,7 +248,7 @@ public class NetworkMatrizAdjacencia<T> extends GraphMatrizAdjacencia<T> impleme
         int[] edges = new int[2];
         for (int i = 0; i < this.adjMatrix.length; i++) {
             for (int y = 0; y < this.adjMatrix[i].length; y++) {
-                if (this.adjMatrix[i][y] == weight && (visited[i] && !visited[y]) || (!visited[i] && visited[y])) {
+                if (this.adjMatrix[i][y] == weight && ((visited[i] && !visited[y]) || (!visited[i] && visited[y]))) {
                     edges[0] = i;
                     edges[1] = y;
                     return edges;

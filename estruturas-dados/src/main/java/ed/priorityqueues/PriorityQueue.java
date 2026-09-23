@@ -27,18 +27,17 @@ public class PriorityQueue<T> extends ArrayHeap<PriorityQueueNode<T>> {
      * Adiciona o elemento dado à fila de prioridade.
      *
      * @param object o elemento a ser adicionado à fila de prioridade
-     * @param priority a prioridade inteira do elemento a ser adicionado
+     * @param priority a prioridade do elemento (o menor valor sai primeiro)
      */
-    public void addElement(T object, int priority) {
+    public void addElement(T object, double priority) {
         PriorityQueueNode<T> node = new PriorityQueueNode<>(object, priority);
         super.addElement(node);
     }
 
     /**
-     * Remove o próximo elemento de maior prioridade da fila de prioridade e
-     * retorna uma referência a ele.
+     * Remove o elemento com o menor valor de prioridade e retorna uma referência a ele.
      *
-     * @return uma referência ao próximo elemento de maior prioridade na fila
+     * @return uma referência ao elemento com o menor valor de prioridade
      * @throws EmptyCollectionException caso a fila esteja vazia
      */
     public T removeNext() throws EmptyCollectionException {

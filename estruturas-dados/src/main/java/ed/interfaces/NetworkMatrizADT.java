@@ -25,10 +25,11 @@ public interface NetworkMatrizADT<T> extends NetworkADT<T> {
     public double getWeightEdge(T vertex, T vertex2);
 
     /**
-     * Atualiza o peso da aresta entre o vértice especificado e o novo peso.
+     * Define o custo de entrar no vértice indicado: todas as arestas que chegam a ele passam a ter
+     * este peso (as que saem dele não mudam).
      *
-     * @param vertex o vértice de origem
-     * @param weight o novo peso da aresta
+     * @param vertex o vértice de destino
+     * @param weight o novo custo de entrada
      */
     public void updateWeightEdge(T vertex, double weight);
 

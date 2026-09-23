@@ -21,9 +21,10 @@ public class PriorityQueueNode<T> implements Comparable<PriorityQueueNode> {
     private static int nextorder = 0;
 
     /**
-     * Prioridade do nó. Quanto maior a prioridade, maior a precedência na fila.
+     * Prioridade do nó. A fila é uma heap mínima: o nó com o menor valor sai primeiro.
+     * É um {@code double} para servir também de chave a algoritmos com pesos reais (ex.: Dijkstra).
      */
-    private int priority;
+    private double priority;
 
     /**
      * Ordem de inserção do nó, usada para desempatar quando os nós têm a mesma prioridade.
@@ -39,9 +40,9 @@ public class PriorityQueueNode<T> implements Comparable<PriorityQueueNode> {
      * Creates a new PriorityQueueNode with the specified data.
      *
      * @param obj  the element of the new priority queue node
-     * @param prio the integer priority of the new queue node
+     * @param prio the priority of the new queue node (lower values leave the queue first)
      */
-    public PriorityQueueNode(T obj, int prio) {
+    public PriorityQueueNode(T obj, double prio) {
         this.element = obj;
         this.priority = prio;
         this.order = nextorder;
@@ -60,9 +61,9 @@ public class PriorityQueueNode<T> implements Comparable<PriorityQueueNode> {
     /**
      * Returns the priority value for this node.
      *
-     * @return the integer priority for this node
+     * @return the priority for this node
      */
-    public int getPriority() {
+    public double getPriority() {
         return this.priority;
     }
 

@@ -30,12 +30,59 @@ public class TestNetwork {
     }
 
     @Test
-    public void testUpdateWeightEdge() {
+    public void testUpdateWeightEdgeChangesOnlyTheCostOfEntering() {
         graph.addEdge("A", "B", 5.0);
         graph.updateWeightEdge("A", 10.0);
 
-        double weight = graph.getWeightEdge("A", "B");
-        assertEquals(10.0, weight, "O peso da aresta entre A e B deve ser 10.0.");
+        assertEquals(10.0, graph.getWeightEdge("B", "A"), "Entrar em A passa a custar 10.");
+        assertEquals(5.0, graph.getWeightEdge("A", "B"), "Sair de A para B continua a custar o mesmo.");
+    }
+
+    @Test
+    public void testUpdateWeightEdgeDoesNotDependOnUpdateOrder() {
+        graph.addEdge("A", "B", 0.0);
+        graph.updateWeightEdge("B", 30.0);
+        graph.updateWeightEdge("A", 0.0);
+
+        assertEquals(30.0, graph.getWeightEdge("A", "B"), "Atualizar A não pode apagar o custo de entrar em B.");
+    }
+
+    /**
+     * Grafo em que fechar os vértices por ordem alfabética (e não pela distância) dá um caminho
+     * errado: A-B-D custa 20, mas A-Z-D custa 2 e "Z" só seria visitado depois de "D".
+     */
+    @Test
+    public void testShortestPathPicksTheCheapestRouteNotTheFirstVertices() {
+        graph.addVertex("D");
+        graph.addVertex("Z");
+        graph.addEdge("A", "B", 10.0);
+        graph.addEdge("B", "D", 10.0);
+        graph.addEdge("A", "Z", 1.0);
+        graph.addEdge("Z", "D", 1.0);
+
+        Iterator<String> path = graph.shortestPath("A", "D");
+        assertEquals("A", path.next());
+        assertEquals("Z", path.next());
+        assertEquals("D", path.next());
+        assertFalse(path.hasNext());
+        assertEquals(2.0, graph.shortestPathWeight("A", "D"));
+        assertEquals(2.0, graph.shortestPathArest("A", "D"));
+    }
+
+    @Test
+    public void testShortestPathWithEntryCosts() {
+        graph.addVertex("D");
+        graph.addEdge("A", "B", 0.0);
+        graph.addEdge("B", "D", 0.0);
+        graph.addEdge("A", "C", 0.0);
+        graph.addEdge("C", "D", 0.0);
+        graph.updateWeightEdge("B", 40.0);
+        graph.updateWeightEdge("C", 15.0);
+
+        Iterator<String> path = graph.shortestPath("A", "D");
+        path.next();
+        assertEquals("C", path.next(), "Deve evitar a divisão com mais inimigos.");
+        assertEquals(15.0, graph.shortestPathWeight("A", "D"));
     }
 
     @Test
