@@ -8,9 +8,7 @@ import ed.linkedlist.LinearLinkedOrderedList;
 import ed.linkedlist.LinearLinkedUnorderedList;
 import tocruz.mapa.Edificio;
 
-import java.util.InputMismatchException;
 import java.util.Objects;
-import java.util.Scanner;
 
 /**
  * Representa uma missão no contexto do jogo, com informações como código, versão,
@@ -24,11 +22,6 @@ import java.util.Scanner;
  * @version 1.0
  */
 public class Missao implements MissaoInt, Comparable<Missao> {
-    /**
-     * Scanner para a leitura de entradas do jogador.
-     */
-    private static final Scanner sc = Consola.SCANNER;
-
     /**
      * Código da missão.
      */
@@ -135,39 +128,37 @@ public class Missao implements MissaoInt, Comparable<Missao> {
     }
 
     /**
-     * Executa o modo manual da missão, permitindo ao utilizador realizar simulações interativas.
+     * Modo manual: o utilizador joga simulações seguidas desta missão. Cada simulação começa
+     * numa cópia do edifício, com os inimigos e itens na posição original.
      */
     @Override
     public void modoManual() {
-        int op = 0;
-        Simulacoes simula;
-
+        int op;
         do {
-            do {
-                System.out.println("Comecar simulacao");
-                System.out.println("0 - Voltar");
-                System.out.println("1 - Jogar");
-                System.out.print("Selecione uma opcao -->");
-
-                try {
-                    op = sc.nextInt();
-                } catch (InputMismatchException ex) {
-                    System.out.println("Numero invalido!");
-                    sc.next();
-                }
-            } while (op < 0 || op > 1);
+            System.out.println();
+            System.out.println("Missão " + cod_missao + " (versão " + versao + ")");
+            System.out.println("  1 - Jogar uma simulação");
+            System.out.println("  0 - Voltar");
+            op = Consola.lerInteiro("Selecione uma opção --> ", 0, 1);
 
             if (op == 1) {
-                simula = new Simulacoes(tot_simulacoes, new Edificio(this.edificio.getId(), this.edificio.getName(), this.edificio.getPlantaEdificio()));
-                simulacoes.add(simula.modojogoManual());
                 tot_simulacoes++;
+                Simulacoes simula = new Simulacoes(tot_simulacoes, copiaDoEdificio());
+                simulacoes.add(simula.modojogoManual());
             }
         } while (op != 0);
 
-        for (Simulacoes simulacao : simulacoes) {
-            System.out.println(simulacao.toString());
-            System.out.println();
+        if (!simulacoes.isEmpty()) {
+            System.out.println("Simulações desta missão (da maior para a menor vida final):");
+            for (Simulacoes simulacao : simulacoes) {
+                System.out.println("  " + simulacao);
+            }
         }
+    }
+
+    /** Cópia do edifício, para cada simulação começar do estado original da missão. */
+    private Edificio copiaDoEdificio() {
+        return new Edificio(this.edificio.getId(), this.edificio.getName(), this.edificio.getPlantaEdificio());
     }
 
     /**
@@ -177,8 +168,7 @@ public class Missao implements MissaoInt, Comparable<Missao> {
      */
     @Override
     public void modoAutomatico() {
-        Simulacoes simulacaoAutomatica = new Simulacoes(tot_simulacoes, new Edificio(this.edificio.getId(), this.edificio.getName(), this.edificio.getPlantaEdificio()));
-        simulacaoAutomatica.modojogoAutomatico();
+        new Simulacoes(0, copiaDoEdificio()).modojogoAutomatico();
     }
 
     /**
@@ -187,8 +177,7 @@ public class Missao implements MissaoInt, Comparable<Missao> {
      */
     @Override
     public void jogoAutomatico() {
-        Simulacoes simulacao = new Simulacoes(tot_simulacoes, new Edificio(this.edificio.getId(), this.edificio.getName(), this.edificio.getPlantaEdificio()));
-        simulacao.jogoAutomatico();
+        new Simulacoes(0, copiaDoEdificio()).jogoAutomatico();
     }
 
     /**
