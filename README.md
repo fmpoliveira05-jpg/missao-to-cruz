@@ -1,10 +1,12 @@
 # Missão Tó Cruz – simulador de incursões
 
-Jogo/simulador de consola em Java onde o agente Tó Cruz entra num edifício controlado por criminosos, tem de chegar ao alvo (resgatar um refém, recuperar um objeto, desarmar uma arma) e sair com vida. O edifício é um grafo, e as decisões do modo automático são tomadas com algoritmos de caminho mais curto sobre esse grafo.
+Simulador em Java onde o agente Tó Cruz entra num edifício controlado por criminosos, tem de chegar ao alvo (resgatar um refém, recuperar um objeto, desarmar uma arma) e sair com vida. O edifício é um grafo pesado e as decisões do modo automático são tomadas com o algoritmo de Dijkstra sobre esse grafo. Pode jogar-se na consola ou numa interface gráfica que mostra a planta do edifício.
 
 Trabalho prático de grupo de **Estruturas de Dados** (2.º ano da Licenciatura em Engenharia Informática, ESTG – Politécnico do Porto, 2024/25), revisto em 2026.
 
 [![CI](https://github.com/fmpoliveira05-jpg/missao-to-cruz/actions/workflows/ci.yml/badge.svg)](https://github.com/fmpoliveira05-jpg/missao-to-cruz/actions/workflows/ci.yml)
+
+![Interface gráfica: o Tó Cruz em combate no Hall, com o caminho mais seguro até ao laboratório a azul](docs/interface.png)
 
 ## Equipa
 
@@ -15,7 +17,7 @@ Trabalho prático de grupo de **Estruturas de Dados** (2.º ano da Licenciatura 
 
 O histórico de *commits* original foi mantido, por isso o contributo de cada um continua visível no separador *Commits*.
 
-**O meu papel:** trabalhei sobretudo na lógica da simulação — movimento e ataque dos inimigos, combate e uso de kits de recuperação pelo Tó Cruz — e no modo automático, que escolhe a melhor entrada e o caminho até ao alvo e de volta pelo grafo pesado com o dano esperado; tratei também da documentação Javadoc. Na revisão de 2026 reorganizei o projeto em Gradle multi-módulo, corrigi a importação, a exportação e o menu e acrescentei a listagem dos resultados de todas as versões de uma missão.
+**O meu papel:** na entrega trabalhei sobretudo na lógica da simulação (movimento e ataque dos inimigos, combate e uso de kits pelo Tó Cruz), no modo automático e na documentação Javadoc. Na revisão de 2026 reorganizei o projeto em Gradle multi-módulo, revi a escolha de cada estrutura de dados e corrigi as que estavam mal aplicadas, separei as regras do jogo da consola num motor com testes e fiz a interface gráfica.
 
 ## O enunciado em poucas palavras
 
@@ -23,46 +25,54 @@ A IMF quer um simulador para o Tó Cruz treinar as missões antes de as fazer. C
 
 Regras principais:
 
-- o Tó Cruz começa com 100 pontos de vida e guarda os kits numa **mochila** (usa sempre o do topo);
+- o Tó Cruz começa com 100 pontos de vida e guarda até 3 kits numa **mochila** (usa sempre o do topo);
 - os coletes somam pontos imediatamente, mesmo acima dos 100;
-- quando entra numa sala com inimigos há confronto; os inimigos que sobrevivem atacam no turno seguinte;
-- a cada turno os inimigos podem mover-se até duas divisões a partir da sala que guardam;
+- ao entrar numa sala com inimigos o Tó Cruz ataca primeiro; os inimigos que sobrevivem respondem na fase deles;
+- a cada turno os inimigos podem mover-se até duas divisões, sem se afastarem mais de duas divisões da sala que guardam;
 - a missão só tem sucesso se o Tó Cruz passar pelo alvo e sair do edifício com vida.
 
 O enunciado proibia a Java Collections Framework: todas as coleções usadas são as desenvolvidas pelo grupo nas aulas.
 
 ## Funcionalidades
 
-- **Importar missões** a partir de JSON, com validação completa do ficheiro (divisões inexistentes, campos em falta, valores inválidos são reportados com uma mensagem clara).
-- **Modo manual** – o jogador escolhe a entrada e, turno a turno, para onde se mover, se ataca ou se usa um kit. No fim de cada turno é sugerido o melhor caminho até ao alvo e até ao kit mais próximo.
-- **Modo automático** – calcula, para todas as entradas possíveis, o trajeto que chega ao alvo com mais vida e indica se é possível voltar a sair sem morrer.
-- **Jogo automático** – o Tó Cruz joga sozinho, turno a turno, seguindo as mesmas regras.
-- **Ver o mapa** do edifício na consola.
-- **Resultados das simulações manuais** de cada missão, ordenados pela vida restante.
-- **Exportar** os trajetos das simulações para JSON (um ficheiro por missão, com todas as versões).
+- **Interface gráfica** – a planta do edifício com os inimigos, os itens, o alvo e o Tó Cruz. Joga-se com o rato: clica-se numa entrada para entrar e numa divisão vizinha para avançar. Mostra o caminho mais seguro até ao objetivo e até ao kit mais próximo, o plano do modo automático e pode jogar sozinha, turno a turno.
+- **Importar missões** a partir de JSON, com validação completa do ficheiro (divisões inexistentes, campos em falta e valores inválidos são reportados com uma mensagem clara).
+- **Modo manual** na consola – escolhe-se a entrada e, turno a turno, o que o Tó Cruz faz entre as opções possíveis (mover, atacar, usar kit, ficar, sair). Em cada turno é sugerido o melhor caminho até ao objetivo e até ao kit mais próximo.
+- **Modo automático** – calcula, para todas as combinações de entrada e saída, o trajeto que termina com mais vida e diz se a missão é viável.
+- **Jogo automático** – o Tó Cruz joga sozinho, com os inimigos a moverem-se, e recalcula o caminho em cada turno.
+- **Resultados das simulações manuais** de cada missão, ordenados pela vida restante, e **exportação** dos trajetos para JSON.
 
-## Estruturas de dados e onde são usadas
+## Estruturas de dados: onde e porquê
 
-| Estrutura | Uso no jogo |
-|---|---|
-| Grafo pesado (`Network`, matriz de adjacência) | o edifício; o peso de cada divisão é o poder total dos inimigos que lá estão |
-| Dijkstra com *heap* mínima (`LinkedHeap`) | caminho que chega ao alvo perdendo menos vida; caminho até ao kit mais próximo |
-| Pilha (`LinkedStack`) | mochila de kits de vida |
-| Fila (`LinkedQueue`) | trajeto percorrido pelo Tó Cruz, pela ordem em que foi feito |
-| Lista ordenada (`LinearLinkedOrderedList`) | missões por código/versão e simulações por vida restante |
-| Lista não ordenada | inimigos em cada divisão, inimigos abatidos, itens recolhidos |
+| Estrutura | Uso | Porquê esta |
+|---|---|---|
+| Grafo pesado dirigido (`Network`, matriz de adjacência) | o edifício | O peso de uma ligação é o dano que o Tó Cruz sofre ao **entrar** na divisão de destino, por isso depende do sentido. Com 20 a 30 divisões a matriz é pequena e dá o peso de qualquer ligação em O(1). |
+| Fila de prioridade mínima (`PriorityQueue`, sobre `ArrayHeap`) | Dijkstra | Tira sempre a divisão ainda por fechar com menor distância acumulada. |
+| Fila (`LinkedQueue`) | pesquisa em largura limitada a 2 ligações; trajeto do Tó Cruz | A BFS visita por ordem de distância; o trajeto é lido pela ordem em que foi feito. |
+| Lista em vetor (`ArrayUnordered`) | divisões candidatas de cada inimigo; caminhos | O movimento escolhe uma candidata ao acaso, o que precisa de acesso por índice. |
+| Pilha (`LinkedStack`) | mochila | O enunciado manda usar sempre o último kit guardado. |
+| Lista ordenada (`LinearLinkedOrderedList`) | missões por código/versão; simulações por vida restante | Mantém a ordem à medida que se insere. |
+| Lista não ordenada ligada | inimigos de cada divisão, inimigos abatidos, relato do turno | Inserções e remoções frequentes, sem ordem. |
 
-Estão também implementadas (e testadas) listas em vetor, listas duplamente ligadas, árvores binárias de pesquisa e filas de prioridade, que fazem parte da biblioteca da unidade curricular.
+A biblioteca da unidade curricular tem ainda listas duplamente ligadas, árvores binárias de pesquisa (em vetor e ligadas) e *heaps*, também com testes. A `NetworkListaAdjacencia` ficou por completar: para edifícios muito grandes e com poucas ligações seria a representação certa.
 
 ## Estrutura do projeto
 
-O projeto é um *build* Gradle com três módulos:
-
 ```
-estruturas-dados/   biblioteca de coleções (pacotes ed.*)            142 testes
-jogo/               modelo e regras do simulador (pacotes tocruz.*)    46 testes
+estruturas-dados/   biblioteca de coleções (pacotes ed.*)                          145 testes
+jogo/               modelo, regras (tocruz.motor) e modos de jogo (tocruz.missoes)    69 testes
 app/                menu de consola; missoes/ tem o ficheiro de exemplo
+gui/                interface gráfica em Swing                                         3 testes
 ```
+
+As regras estão todas em `tocruz.motor`, sem qualquer leitura ou escrita na consola:
+
+- `MotorJogo` recebe as ações do jogador e aplica as fases do turno;
+- `MovimentoInimigos` move os inimigos;
+- `PlaneadorMissao` calcula o plano do modo automático;
+- `JogadorAutomatico` joga sozinho.
+
+A consola (`Simulacoes`) e a interface gráfica (`JanelaMissao`) usam o mesmo motor.
 
 ## Como executar
 
@@ -71,32 +81,51 @@ Requisitos: **Java 17** ou superior. Não é preciso instalar o Gradle, o *wrapp
 ```bash
 git clone https://github.com/fmpoliveira05-jpg/missao-to-cruz.git
 cd missao-to-cruz
-./gradlew build                      # compila e corre os 188 testes (no Windows: gradlew.bat build)
-./gradlew :app:run --console=plain   # arranca o simulador
+./gradlew build                      # compila e corre os 217 testes (no Windows: gradlew.bat build)
+./gradlew :gui:run                   # interface gráfica (abre a missão de exemplo)
+./gradlew :app:run --console=plain   # versão de consola
 ```
 
-Também é possível gerar um `.jar` único e executá-lo dentro da pasta `app/`:
+Também é possível gerar `.jar` executáveis:
 
 ```bash
-./gradlew :app:jar
+./gradlew :gui:jar :app:jar
+java -jar gui/build/libs/missao-to-cruz-gui.jar [missao.json]
 cd app && java -jar build/libs/missao-to-cruz.jar
 ```
 
-### Primeira partida
+### Primeira partida (interface gráfica)
 
-1. `1` – importar missão → escrever `missao-exemplo`.
-2. `3` – ver o mapa, para perceber onde estão os inimigos, os itens e o alvo (um laboratório com uma arma química).
-3. `2` – jogar → escolher a missão → `1` (modo manual). Escolhe-se a entrada e, a cada turno, a divisão seguinte. Quando há inimigos na sala escolhe-se entre atacar ou usar um kit.
-4. `4` – ver os resultados das tentativas de todas as versões dessa missão, da melhor para a pior (com a versão de cada uma).
-5. `5` – exportar os trajetos para `app/exportacoes/`.
+1. As entradas têm contorno verde: clicar numa para o Tó Cruz entrar.
+2. A azul aparece o caminho que custa menos vida até ao alvo (dourado) e, a tracejado verde, o caminho até ao kit mais próximo. As divisões para onde se pode ir têm contorno tracejado; passar o rato por cima de uma divisão mostra os inimigos e o dano previsto.
+3. Numa divisão com inimigos só se pode **Atacar** ou **Usar kit**. Ao encontrar um kit escolhe-se usar, guardar ou deixar.
+4. Com o alvo apanhado, voltar a uma entrada e carregar em **Sair do edifício**.
+5. **Plano automático** desenha o plano do modo automático; **Jogar sozinho** põe o Tó Cruz a jogar turno a turno.
 
 ## O que mudou na revisão de 2026
 
-- Os três projetos IntelliJ independentes (que dependiam uns dos outros através de `.jar` copiados à mão) passaram a ser um único *build* Gradle multi-módulo com dependências entre projetos.
-- Os pacotes passaram a seguir as convenções Java (`ed.linkedlist` em vez de `LinkedList`, por exemplo). Antes existiam pacotes `Exceptions` e `Interfaces` com o mesmo nome em dois projetos diferentes.
-- O histórico foi limpo de ficheiros gerados (`build/`, `.gradle/`, `.idea/`, `.jar`), o que reduziu o repositório de ~80 MB para ~5 MB, mantendo todos os *commits* e autores.
-- A importação passou a **validar** o ficheiro: antes, uma divisão mal escrita causava um `NullPointerException` e um ficheiro inexistente resultava numa missão `null`. O ficheiro também não era fechado depois de lido.
-- A exportação repetia a mesma versão uma vez por cada simulação e contava mal o total de simulações.
-- Cada classe criava o seu próprio `Scanner` sobre `System.in`, o que fazia perder entrada; agora há um único ponto de leitura.
-- O menu ganhou as opções "ver mapa" e "ver resultados" pedidas no enunciado, e os erros de importação deixaram de terminar a aplicação.
-- O teste da importação de um ficheiro válido apontava para um caminho que não existia e acabava por comparar `null` com `null`; foi reescrito com um ficheiro de teste real e passaram a existir testes para ficheiros inválidos.
+### Organização
+
+- Os três projetos IntelliJ independentes, que dependiam uns dos outros através de `.jar` copiados à mão, passaram a ser um único *build* Gradle multi-módulo.
+- Os pacotes passaram a seguir as convenções Java (`ed.linkedlist` em vez de `LinkedList`, por exemplo).
+- O histórico foi limpo de ficheiros gerados (`build/`, `.gradle/`, `.idea/`, `.jar`): o repositório passou de ~80 MB para ~5 MB, com todos os *commits* e autores.
+
+### Estruturas de dados e regras
+
+- **Dijkstra.** A *heap* ordenava as divisões pela ordem em que foram criadas e não pela distância acumulada, por isso o "caminho mais curto" dependia da ordem das divisões no ficheiro. Passou a usar uma fila de prioridade ordenada pela distância. Há um teste com um grafo em que a versão antiga escolhe o caminho errado.
+- **Pesos do grafo.** O custo de uma divisão era escrito nos dois sentidos de cada ligação, e atualizar uma divisão apagava o custo da vizinha. Agora o custo só se aplica a quem entra, e o resultado deixou de depender da ordem das atualizações.
+- **Custo de entrada.** Passou a ser o dano real do combate (o Tó Cruz ataca primeiro e os inimigos que sobrevivem respondem até a sala ficar limpa). Com isso, a vida prevista pelo modo automático bate certo com a de um jogo em que os inimigos não se mexem, e o regresso já não volta a contar os inimigos eliminados na ida.
+- **Movimento dos inimigos.** Os inimigos andavam pelo edifício sem limite; agora nunca se afastam mais de duas ligações da sala que guardam (pesquisa em largura limitada). A escolha ao acaso usava uma pilha e passou a usar uma lista com acesso por índice.
+- **Cópia do edifício.** Cada simulação começa numa cópia do edifício, mas a cópia ligava todas as divisões entre si. Passou a recriar só as ligações que existem.
+- **Iterador do grafo.** Era uma pesquisa em profundidade a partir da primeira divisão: deixava de fora divisões ainda sem ligações. Passou a percorrer todos os vértices.
+- **Pequenos erros.**
+  - `Divisao.equals` comparava nomes com `==`.
+  - Usar um kit com mais de 100 de vida (graças a um colete) fazia perder o kit.
+  - Uma condição do movimento dos inimigos nunca era verdadeira.
+
+### Código e interface
+
+- **Motor separado da consola.** A classe `Simulacoes` tinha 1200 linhas com regras e perguntas ao jogador misturadas, sem testes possíveis. As regras passaram para `tocruz.motor`, com 23 testes novos, e a consola e a interface gráfica usam o mesmo motor.
+- **Interface gráfica nova.** A planta do edifício é desenhada numa grelha: a posição de cada divisão é escolhida por *simulated annealing*, para as ligações ficarem curtas, sem se cruzarem e sem passarem por cima de outras divisões.
+- **Importação.** Passou a **validar** o ficheiro. Antes, uma divisão mal escrita causava um `NullPointerException` e um ficheiro inexistente dava uma missão `null`.
+- **Exportação e menu.** A exportação repetia versões e contava mal as simulações. O menu ganhou as opções "ver mapa" e "ver resultados" pedidas no enunciado.
