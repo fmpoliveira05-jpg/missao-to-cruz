@@ -17,3 +17,9 @@ exportacoes/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Pastas geradas pelo VS Code / Eclipse ao abrir o projeto
+bin/
+.classpath
+.project
+.settings/
