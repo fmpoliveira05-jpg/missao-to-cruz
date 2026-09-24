@@ -55,6 +55,7 @@ class PainelLateral extends JPanel {
     final Botao abrirMissao = new Botao("Abrir missão…", Tema.TEXTO_SUAVE, false);
     final JCheckBox verSugestao = caixa("Mostrar caminho sugerido", true);
     final JCheckBox verKit = caixa("Mostrar kit mais próximo", true);
+    final JCheckBox seguir = caixa("Câmara a seguir o Tó Cruz (M)", true);
 
     private final Cabecalho cabecalho = new Cabecalho();
     private final CartaoEstado estado = new CartaoEstado();
@@ -104,6 +105,7 @@ class PainelLateral extends JPanel {
         topo.add(Box.createVerticalStrut(10));
         topo.add(verSugestao);
         topo.add(verKit);
+        topo.add(seguir);
         add(topo, BorderLayout.NORTH);
 
         registo.setBackground(Tema.CARTAO);
@@ -160,12 +162,14 @@ class PainelLateral extends JPanel {
     }
 
     /** Atualiza os indicadores e os botões ao estado do motor. */
-    void atualizar(MotorJogo motor, boolean aJogarSozinho) {
-        estado.motor = motor;
-        estado.repaint();
+    void atualizar(MotorJogo motor, boolean aJogarSozinho, boolean aAnimar) {
+        if (!aAnimar || estado.retrato == null) {
+            estado.retrato = Retrato.de(motor);
+            estado.repaint();
+        }
 
         MotorJogo.Estado fase = motor.getEstado();
-        boolean manual = !aJogarSozinho;
+        boolean manual = !aJogarSozinho && !aAnimar;
         cartasAcoes.show(acoes, fase == MotorJogo.Estado.DECIDIR_KIT ? "kit" : "normais");
         if (fase == MotorJogo.Estado.DECIDIR_KIT) {
             ItemCura kit = motor.getKitPorDecidir();
@@ -183,8 +187,23 @@ class PainelLateral extends JPanel {
         jogarSozinho.repaint();
     }
 
+    private final javax.swing.DefaultListModel<String> pendentes = new javax.swing.DefaultListModel<>();
+
     void limparRegisto() {
         linhas.clear();
+        pendentes.clear();
+    }
+
+    /** Guarda uma linha para mostrar só quando a animação correspondente acabar. */
+    void registarDepois(String linha) {
+        pendentes.addElement(linha);
+    }
+
+    void mostrarPendentes() {
+        for (int i = 0; i < pendentes.size(); i++) {
+            registar(pendentes.get(i));
+        }
+        pendentes.clear();
     }
 
     void registar(String linha) {
@@ -305,10 +324,47 @@ class PainelLateral extends JPanel {
         }
     }
 
+    /** Estado do jogo copiado no fim de cada animação (durante a animação mostra-se o anterior). */
+    private static final class Retrato {
+        MotorJogo.Estado estado;
+        boolean sucesso;
+        boolean emCombate;
+        int turno;
+        String nivel;
+        String onde;
+        long vida;
+        long[] kits;
+        boolean comAlvo;
+
+        static Retrato de(MotorJogo motor) {
+            Retrato r = new Retrato();
+            r.estado = motor.getEstado();
+            r.sucesso = motor.isSucesso();
+            r.emCombate = motor.emCombate();
+            r.turno = motor.getTurno();
+            r.nivel = motor.getDificuldade().getNome();
+            r.onde = motor.getDivisaoAtual() == null ? "Fora do edifício" : motor.getDivisaoAtual().getName();
+            ToCruz to = motor.getToCruz();
+            r.vida = to.getVida();
+            r.comAlvo = to.isColectedAlvo();
+            // A mochila é uma pilha: tira-se tudo para ler e volta-se a pôr pela mesma ordem.
+            ItemCura[] itens = new ItemCura[to.getMochila().size()];
+            for (int i = itens.length - 1; i >= 0; i--) {
+                itens[i] = to.getMochila().pop();
+            }
+            r.kits = new long[itens.length];
+            for (int i = 0; i < itens.length; i++) {
+                to.getMochila().push(itens[i]);
+                r.kits[i] = itens[i].getVida_recuperada();
+            }
+            return r;
+        }
+    }
+
     /** Vida, mochila, alvo e fase do jogo. */
     private static final class CartaoEstado extends JComponent {
         private static final long serialVersionUID = 1L;
-        private transient MotorJogo motor;
+        private transient Retrato retrato;
 
         CartaoEstado() {
             setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -326,18 +382,18 @@ class PainelLateral extends JPanel {
             g.fill(new RoundRectangle2D.Double(0, 0, w - 1, getHeight() - 1, 16, 16));
             g.setColor(Tema.CARTAO_BORDA);
             g.draw(new RoundRectangle2D.Double(0, 0, w - 1, getHeight() - 1, 16, 16));
-            if (motor == null) {
+            Retrato r = retrato;
+            if (r == null) {
                 g.dispose();
                 return;
             }
-            ToCruz to = motor.getToCruz();
 
             // Fase do jogo.
             String fase;
             Color corFase;
-            switch (motor.getEstado()) {
+            switch (r.estado) {
                 case ESCOLHER_ENTRADA:
-                    fase = "Escolha uma entrada no mapa";
+                    fase = "Escolha a entrada";
                     corFase = Tema.VERDE;
                     break;
                 case DECIDIR_KIT:
@@ -345,16 +401,16 @@ class PainelLateral extends JPanel {
                     corFase = Tema.VERDE;
                     break;
                 case TERMINADO:
-                    fase = motor.isSucesso() ? "Missão cumprida" : "Missão falhada";
-                    corFase = motor.isSucesso() ? Tema.VERDE : Tema.VERMELHO;
+                    fase = r.sucesso ? "Missão cumprida" : "Missão falhada";
+                    corFase = r.sucesso ? Tema.VERDE : Tema.VERMELHO;
                     break;
                 default:
-                    fase = motor.emCombate() ? "Em combate" : "A explorar";
-                    corFase = motor.emCombate() ? Tema.VERMELHO : Tema.CIANO;
+                    fase = r.emCombate ? "Em combate" : "A explorar";
+                    corFase = r.emCombate ? Tema.VERMELHO : Tema.CIANO;
                     break;
             }
             g.setFont(Tema.texto(Font.BOLD, 11f));
-            String turno = "TURNO " + motor.getTurno();
+            String turno = "TURNO " + r.turno;
             g.setColor(Tema.TEXTO_SUAVE);
             g.drawString(turno, 16, 24);
             FontMetrics fm = g.getFontMetrics();
@@ -365,11 +421,11 @@ class PainelLateral extends JPanel {
             // Divisão atual.
             g.setFont(Tema.titulo(17f));
             g.setColor(Tema.TEXTO);
-            String onde = motor.getDivisaoAtual() == null ? "Fora do edifício" : motor.getDivisaoAtual().getName();
+            String onde = r.onde;
             g.drawString(onde, 16, 50);
 
             // Barra de vida (a escala vai até 125 para caber um colete).
-            long vida = Math.max(0, to.getVida());
+            long vida = Math.max(0, r.vida);
             double maximo = Math.max(125, vida);
             int barraX = 16;
             int barraY = 66;
@@ -402,13 +458,7 @@ class PainelLateral extends JPanel {
             g.setFont(Tema.texto(Font.PLAIN, 12f));
             g.setColor(Tema.TEXTO_SUAVE);
             g.drawString("Mochila", 16, linhaY + 5);
-            ItemCura[] kits = new ItemCura[to.getMochila().size()];
-            for (int i = kits.length - 1; i >= 0; i--) {
-                kits[i] = to.getMochila().pop();
-            }
-            for (ItemCura kit : kits) {
-                to.getMochila().push(kit);
-            }
+            long[] kits = r.kits;
             for (int i = 0; i < PlaneadorMissao.CAPACIDADE_MOCHILA; i++) {
                 double x = 76 + i * 40;
                 RoundRectangle2D espaco = new RoundRectangle2D.Double(x, linhaY - 12, 34, 24, 8, 8);
@@ -418,7 +468,7 @@ class PainelLateral extends JPanel {
                     g.setColor(Tema.VERDE);
                     g.draw(espaco);
                     g.setFont(Tema.texto(Font.BOLD, 11f));
-                    String pontos = "+" + kits[i].getVida_recuperada();
+                    String pontos = "+" + kits[i];
                     g.drawString(pontos, (float) (x + 17 - g.getFontMetrics().stringWidth(pontos) / 2.0), linhaY + 4);
                 } else {
                     g.setColor(Tema.CARTAO_BORDA);
@@ -433,7 +483,7 @@ class PainelLateral extends JPanel {
             g.setFont(Tema.texto(Font.PLAIN, 12f));
             g.setColor(Tema.TEXTO_SUAVE);
             g.drawString("Alvo", 16, linhaY + 5);
-            boolean comAlvo = to.isColectedAlvo();
+            boolean comAlvo = r.comAlvo;
             g.setFont(Tema.texto(Font.BOLD, 12.5f));
             g.setColor(comAlvo ? Tema.DOURADO : Tema.TEXTO_SUAVE);
             g.drawString(comAlvo ? "Apanhado — falta sair com vida" : "Por apanhar", 76, linhaY + 5);

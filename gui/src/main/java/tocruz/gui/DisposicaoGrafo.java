@@ -21,6 +21,7 @@ final class DisposicaoGrafo {
     private static final int ITERACOES = 40_000;
     private static final double PESO_CRUZAMENTO = 6;
     private static final double PESO_POR_CIMA = 10;
+    private static final double PESO_DIAGONAL = 2;
 
     /** Centro de cada caixa. */
     final double[] x;
@@ -63,6 +64,15 @@ final class DisposicaoGrafo {
      * @return a melhor disposição encontrada
      */
     static DisposicaoGrafo calcular(boolean[][] ligado, double[] larguras, double[] alturas, double proporcao) {
+        return calcular(ligado, larguras, alturas, proporcao, 34, 56);
+    }
+
+    /**
+     * @param folgaX espaço horizontal entre caixas vizinhas
+     * @param folgaY espaço vertical entre caixas vizinhas
+     */
+    static DisposicaoGrafo calcular(boolean[][] ligado, double[] larguras, double[] alturas, double proporcao,
+                                    double folgaX, double folgaY) {
         int n = ligado.length;
         double maiorW = 0;
         double maiorH = 0;
@@ -70,15 +80,15 @@ final class DisposicaoGrafo {
             maiorW = Math.max(maiorW, larguras[i]);
             maiorH = Math.max(maiorH, alturas[i]);
         }
-        double celulaW = maiorW + 34;
-        double celulaH = maiorH + 56;
+        double celulaW = maiorW + folgaX;
+        double celulaH = maiorH + folgaY;
 
-        // Grelha com folga (cerca de 1,6 células por divisão) e com a proporção pedida.
+        // Grelha com folga (cerca de 1,4 células por divisão) e com a proporção pedida.
         int melhorColunas = 1;
         int melhorLinhas = Math.max(1, n);
         double melhorDiferenca = Double.MAX_VALUE;
         for (int colunas = 1; colunas <= Math.max(1, n); colunas++) {
-            int linhas = Math.max(1, (int) Math.ceil(n * 1.6 / colunas));
+            int linhas = Math.max(1, (int) Math.ceil(n * 1.4 / colunas));
             double diferenca = Math.abs(Math.log(colunas * celulaW / (linhas * celulaH) / proporcao));
             if (diferenca < melhorDiferenca) {
                 melhorDiferenca = diferenca;
@@ -189,6 +199,10 @@ final class DisposicaoGrafo {
                     double dc = (x[a] - x[b]) / celulaW;
                     double dl = (y[a] - y[b]) / celulaH;
                     comprimento += dc * dc + dl * dl;
+                    if (Math.abs(dc) > 0.01 && Math.abs(dl) > 0.01) {
+                        // Ligações na diagonal viram corredores em L: preferem-se vizinhos diretos.
+                        comprimento += PESO_DIAGONAL;
+                    }
                 }
             }
         }
@@ -266,6 +280,16 @@ final class DisposicaoGrafo {
             }
         }
         return total;
+    }
+
+    /** @return largura de uma célula da grelha */
+    double getCelulaW() {
+        return celulaW;
+    }
+
+    /** @return altura de uma célula da grelha */
+    double getCelulaH() {
+        return celulaH;
     }
 
     /** @return se as caixas de duas divisões se sobrepõem */

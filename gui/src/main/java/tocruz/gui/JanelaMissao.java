@@ -3,6 +3,7 @@ package tocruz.gui;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.event.ActionEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -12,9 +13,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Random;
 import javax.imageio.ImageIO;
+import javax.swing.AbstractAction;
+import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.UIManager;
@@ -23,6 +27,7 @@ import tocruz.importar.ImportarMapa;
 import tocruz.mapa.Divisao;
 import tocruz.mapa.Edificio;
 import tocruz.missoes.Missao;
+import tocruz.motor.Dificuldade;
 import tocruz.motor.JogadorAutomatico;
 import tocruz.motor.MotorJogo;
 import tocruz.motor.PlaneadorMissao;
@@ -31,10 +36,11 @@ import tocruz.motor.Plano;
 /**
  * Interface gráfica do simulador.
  *
- * <p>Mostra o edifício como uma planta e deixa jogar o modo manual com o rato: clicar numa
- * entrada para entrar, clicar numa divisão vizinha para avançar e usar os botões para atacar,
- * usar kits ou sair. Também mostra o plano do modo automático e pode jogar sozinha, turno a turno.
- * Todas as regras vêm de {@link MotorJogo}, o mesmo motor usado pela aplicação de consola.</p>
+ * <p>Mostra o edifício como uma planta vista de cima e deixa jogar com o rato e o teclado:
+ * escolher a dificuldade, clicar numa entrada para entrar, clicar numa sala vizinha para avançar e
+ * usar os botões (ou as teclas A, K, F e S) para atacar, usar um kit, ficar ou sair. Cada ação é
+ * animada a partir dos eventos do motor. Todas as regras vêm de {@link MotorJogo}, o mesmo motor
+ * usado pela aplicação de consola.</p>
  *
  * <p>Uso: {@code JanelaMissao [ficheiro.json]}. Sem ficheiro, abre a missão de exemplo.</p>
  *
@@ -43,16 +49,23 @@ import tocruz.motor.Plano;
 public class JanelaMissao extends JFrame {
 
     private static final long serialVersionUID = 1L;
-    private static final int PAUSA_JOGO_SOZINHO_MS = 550;
+    private static final int PAUSA_JOGO_SOZINHO_MS = 350;
 
-    private final PainelMapa mapa = new PainelMapa();
+    private final PainelPlanta painel = new PainelPlanta();
     private final PainelLateral lateral = new PainelLateral();
     private final transient JogadorAutomatico jogador = new JogadorAutomatico();
     private final Timer relogio;
 
     private transient Missao missao;
+    private transient Planta planta;
+    private transient Cena cena;
     private transient MotorJogo motor;
     private transient Random aleatorio = new Random();
+    private transient Dificuldade dificuldade = Dificuldade.AGENTE;
+    private boolean jogarSozinho;
+    private boolean estavaOcupada;
+    private long ultimoTique;
+    private double parado;
 
     /**
      * @param missao missão a abrir
@@ -62,13 +75,23 @@ public class JanelaMissao extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         getContentPane().setBackground(Tema.FUNDO);
         getContentPane().setLayout(new BorderLayout());
-        getContentPane().add(mapa, BorderLayout.CENTER);
+        getContentPane().add(painel, BorderLayout.CENTER);
         getContentPane().add(lateral, BorderLayout.EAST);
-        setMinimumSize(new Dimension(1100, 680));
+        setMinimumSize(new Dimension(1180, 720));
 
-        relogio = new Timer(PAUSA_JOGO_SOZINHO_MS, e -> passoAutomatico());
+        relogio = new Timer(16, e -> tique());
 
-        mapa.setOuvinte(this::clicouEm);
+        painel.setOuvinte(new PainelPlanta.Ouvinte() {
+            @Override
+            public void clicouSala(Divisao divisao) {
+                clicouEm(divisao);
+            }
+
+            @Override
+            public void escolheuDificuldade(Dificuldade escolhida) {
+                novaSimulacao(escolhida);
+            }
+        });
         lateral.atacar.addActionListener(e -> agir(() -> motor.atacar()));
         lateral.usarKit.addActionListener(e -> agir(() -> motor.usarKit()));
         lateral.ficar.addActionListener(e -> agir(() -> motor.aguardar()));
@@ -76,38 +99,85 @@ public class JanelaMissao extends JFrame {
         lateral.kitUsar.addActionListener(e -> agir(() -> motor.decidirKit(MotorJogo.DecisaoKit.USAR)));
         lateral.kitGuardar.addActionListener(e -> agir(() -> motor.decidirKit(MotorJogo.DecisaoKit.GUARDAR)));
         lateral.kitDeixar.addActionListener(e -> agir(() -> motor.decidirKit(MotorJogo.DecisaoKit.DEIXAR)));
-        lateral.novaSimulacao.addActionListener(e -> novaSimulacao());
+        lateral.novaSimulacao.addActionListener(e -> pedirDificuldade());
         lateral.planoAutomatico.addActionListener(e -> alternarPlano());
         lateral.jogarSozinho.addActionListener(e -> alternarJogoSozinho());
         lateral.abrirMissao.addActionListener(e -> escolherFicheiro());
-        lateral.verSugestao.addActionListener(e -> mapa.setMostrarSugestao(lateral.verSugestao.isSelected()));
-        lateral.verKit.addActionListener(e -> mapa.setMostrarKit(lateral.verKit.isSelected()));
+        lateral.verSugestao.addActionListener(e -> painel.setMostrarSugestao(lateral.verSugestao.isSelected()));
+        lateral.verKit.addActionListener(e -> painel.setMostrarKit(lateral.verKit.isSelected()));
+        lateral.seguir.addActionListener(e -> painel.setSeguir(lateral.seguir.isSelected()));
+
+        atalho("A", () -> seAtivo(lateral.atacar));
+        atalho("K", () -> seAtivo(lateral.usarKit));
+        atalho("F", () -> seAtivo(lateral.ficar));
+        atalho("SPACE", () -> seAtivo(lateral.ficar));
+        atalho("S", () -> seAtivo(lateral.sair));
+        atalho("M", () -> lateral.seguir.doClick(0));
+        atalho("1", () -> seAtivo(lateral.kitUsar));
+        atalho("2", () -> seAtivo(lateral.kitGuardar));
+        atalho("3", () -> seAtivo(lateral.kitDeixar));
 
         abrir(missao);
+        relogio.start();
+    }
+
+    private void atalho(String tecla, Runnable acao) {
+        String nome = "atalho-" + tecla;
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(tecla), nome);
+        getRootPane().getActionMap().put(nome, new AbstractAction() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                acao.run();
+            }
+        });
+    }
+
+    private static void seAtivo(Botao botao) {
+        if (botao.isEnabled()) {
+            botao.doClick(0);
+        }
     }
 
     // ------------------------------------------------------------------ missão e simulações
 
     private void abrir(Missao novaMissao) {
         this.missao = novaMissao;
+        this.planta = Planta.criar(novaMissao.getEdificio());
         lateral.setMissao(novaMissao.getcod_missao(), novaMissao.getVersao());
-        mapa.setEdificio(novaMissao.getEdificio());
-        novaSimulacao();
+        painel.setPlanta(planta);
+        painel.setNomeMissao(novaMissao.getcod_missao());
+        novaSimulacao(dificuldade);
+        lateral.limparRegisto();
+        lateral.registar("Escolha a dificuldade para começar a missão «" + novaMissao.getcod_missao() + "».");
+        pedirDificuldade();
+    }
+
+    private void pedirDificuldade() {
+        jogarSozinho = false;
+        painel.setEscolherDificuldade(true);
+        atualizarBotoes();
     }
 
     /** Começa uma simulação numa cópia do edifício (inimigos e itens na posição original). */
-    private void novaSimulacao() {
-        relogio.stop();
+    private void novaSimulacao(Dificuldade escolhida) {
+        dificuldade = escolhida;
+        jogarSozinho = false;
         Edificio base = missao.getEdificio();
-        motor = new MotorJogo(new Edificio(base.getId(), base.getName(), base.getPlantaEdificio()), aleatorio);
-        mapa.setMotor(motor);
+        motor = new MotorJogo(new Edificio(base.getId(), base.getName(), base.getPlantaEdificio()), aleatorio, escolhida);
+        cena = new Cena(planta);
+        cena.carregar(motor);
+        painel.setJogo(motor, cena);
+        painel.setEscolherDificuldade(false);
         lateral.limparRegisto();
-        lateral.registar("Nova simulação. Clique numa das entradas (contorno verde) para o Tó Cruz entrar.");
-        atualizar();
+        lateral.registar("Nível " + escolhida.getNome() + ": " + escolhida.getDescricao());
+        lateral.registar("Clique numa das entradas (contorno verde) para o Tó Cruz entrar.");
+        atualizarBotoes();
     }
 
     private void clicouEm(Divisao divisao) {
-        if (relogio.isRunning()) {
+        if (jogarSozinho || cena.ocupada()) {
             return;
         }
         if (motor.getEstado() == MotorJogo.Estado.ESCOLHER_ENTRADA) {
@@ -118,7 +188,7 @@ public class JanelaMissao extends JFrame {
             }
         } else if (motor.getEstado() == MotorJogo.Estado.A_JOGAR) {
             if (motor.emCombate()) {
-                lateral.registar("Em combate não pode sair da divisão: ataque ou use um kit.");
+                lateral.registar("Em combate não pode sair da sala: ataque (A) ou use um kit (K).");
             } else if (motor.getDestinosPossiveis().contains(divisao)) {
                 agir(() -> motor.mover(divisao));
             } else if (!divisao.equals(motor.getDivisaoAtual())) {
@@ -127,32 +197,85 @@ public class JanelaMissao extends JFrame {
         }
     }
 
-    /** Executa uma ação do jogador e mostra o que aconteceu. */
+    /** Executa uma ação do jogador e põe na fila as animações do que aconteceu. */
     private void agir(Runnable acao) {
+        if (cena.ocupada() || painel.isEscolherDificuldade()) {
+            return;
+        }
         try {
             acao.run();
         } catch (IllegalStateException | IllegalArgumentException e) {
             lateral.registar(e.getMessage());
         }
         for (String frase : motor.consumirRelato()) {
-            lateral.registar(frase);
+            lateral.registarDepois(frase);
         }
-        atualizar();
+        cena.acrescentar(motor.consumirEventos());
+        if (!cena.ocupada()) {
+            lateral.mostrarPendentes();
+        }
+        painel.setPlano(null);
+        atualizarBotoes();
     }
 
-    private void atualizar() {
-        lateral.atualizar(motor, relogio.isRunning());
-        mapa.repaint();
+    private void atualizarBotoes() {
+        lateral.atualizar(motor, jogarSozinho, cena != null && cena.ocupada() || painel.isEscolherDificuldade());
+    }
+
+    /** Relógio da animação (cerca de 60 imagens por segundo). */
+    private void tique() {
+        long agora = System.nanoTime();
+        double dt = ultimoTique == 0 ? 16 : Math.min(50, (agora - ultimoTique) / 1e6);
+        ultimoTique = agora;
+        if (cena == null) {
+            return;
+        }
+        cena.avancar(dt);
+        painel.avancarCamera(dt);
+        boolean ocupada = cena.ocupada();
+        if (estavaOcupada && !ocupada) {
+            cena.sincronizar(motor);
+            lateral.mostrarPendentes();
+            atualizarBotoes();
+        }
+        estavaOcupada = ocupada;
+
+        if (jogarSozinho && !ocupada) {
+            parado += dt;
+            if (motor.getEstado() == MotorJogo.Estado.TERMINADO || motor.getTurno() >= JogadorAutomatico.LIMITE_TURNOS) {
+                jogarSozinho = false;
+                atualizarBotoes();
+            } else if (parado >= PAUSA_JOGO_SOZINHO_MS) {
+                parado = 0;
+                passoAutomatico();
+            }
+        }
+        painel.repaint();
+    }
+
+    private void passoAutomatico() {
+        if (motor.getEstado() == MotorJogo.Estado.ESCOLHER_ENTRADA) {
+            Plano plano = new PlaneadorMissao().planear(motor.getEdificio());
+            agirSemBloqueio(() -> motor.entrar(plano.getEntrada()));
+        } else {
+            agirSemBloqueio(() -> jogador.jogarTurno(motor));
+        }
+    }
+
+    private void agirSemBloqueio(Runnable acao) {
+        boolean antes = jogarSozinho;
+        agir(acao);
+        jogarSozinho = antes;
     }
 
     private void alternarPlano() {
-        if (mapa.getPlano() != null) {
-            mapa.setPlano(null);
+        if (painel.getPlano() != null) {
+            painel.setPlano(null);
             return;
         }
         try {
             Plano plano = new PlaneadorMissao().planear(motor.getEdificio());
-            mapa.setPlano(plano);
+            painel.setPlano(plano);
             lateral.registar("Plano automático (dourado: ida, laranja: regresso), com os inimigos nas posições atuais:");
             for (String linha : plano.descrever().split("\n")) {
                 lateral.registar(linha);
@@ -163,30 +286,12 @@ public class JanelaMissao extends JFrame {
     }
 
     private void alternarJogoSozinho() {
-        if (relogio.isRunning()) {
-            relogio.stop();
-        } else if (motor.getEstado() != MotorJogo.Estado.TERMINADO) {
-            relogio.start();
-        }
-        atualizar();
-    }
-
-    private void passoAutomatico() {
-        if (motor.getEstado() == MotorJogo.Estado.TERMINADO || motor.getTurno() >= JogadorAutomatico.LIMITE_TURNOS) {
-            relogio.stop();
-            atualizar();
+        if (motor.getEstado() == MotorJogo.Estado.TERMINADO) {
             return;
         }
-        if (motor.getEstado() == MotorJogo.Estado.ESCOLHER_ENTRADA) {
-            Plano plano = new PlaneadorMissao().planear(motor.getEdificio());
-            agir(() -> motor.entrar(plano.getEntrada()));
-        } else {
-            agir(() -> jogador.jogarTurno(motor));
-        }
-        if (motor.getEstado() == MotorJogo.Estado.TERMINADO) {
-            relogio.stop();
-            atualizar();
-        }
+        jogarSozinho = !jogarSozinho;
+        parado = PAUSA_JOGO_SOZINHO_MS;
+        atualizarBotoes();
     }
 
     private void escolherFicheiro() {
@@ -207,7 +312,7 @@ public class JanelaMissao extends JFrame {
     /**
      * Abre a missão indicada, ou a de exemplo.
      *
-     * @param args {@code [ficheiro.json]} ou {@code --captura imagem.png [largura altura [turnos [semente]]]}
+     * @param args {@code [ficheiro.json]}, ou {@code --captura imagem.png largura altura turnos semente nivel ms}
      * @throws Exception se a missão não puder ser lida
      */
     public static void main(String[] args) throws Exception {
@@ -224,7 +329,7 @@ public class JanelaMissao extends JFrame {
             }
             aplicarCoresDasDicas();
             JanelaMissao janela = new JanelaMissao(missao);
-            janela.setSize(1360, 820);
+            janela.setSize(1440, 860);
             janela.setLocationRelativeTo(null);
             janela.setVisible(true);
         });
@@ -257,7 +362,9 @@ public class JanelaMissao extends JFrame {
     }
 
     /**
-     * Gera uma imagem da janela a meio de um jogo automático (usada no README).
+     * Gera uma imagem da janela a meio de um jogo automático (usada no README): joga
+     * {@code turnos} turnos sem animação, faz mais uma jogada e tira a fotografia {@code ms}
+     * milissegundos depois do início da animação.
      */
     private static void capturar(String[] args) throws Exception {
         String destino = args[1];
@@ -265,24 +372,50 @@ public class JanelaMissao extends JFrame {
         int altura = args.length > 3 ? Integer.parseInt(args[3]) : 860;
         int turnos = args.length > 4 ? Integer.parseInt(args[4]) : 6;
         long semente = args.length > 5 ? Long.parseLong(args[5]) : 4;
-        Missao missao = carregar(args.length > 6 ? args[6] : null);
+        Dificuldade nivel = args.length > 6 ? Dificuldade.valueOf(args[6]) : Dificuldade.AGENTE;
+        double ms = args.length > 7 ? Double.parseDouble(args[7]) : 0;
+        Missao missao = carregar(null);
 
         SwingUtilities.invokeAndWait(() -> {
             JanelaMissao janela = new JanelaMissao(missao);
+            janela.relogio.stop();
             janela.aleatorio = new Random(semente);
-            janela.novaSimulacao();
+            janela.novaSimulacao(nivel);
             janela.setUndecorated(true);
             janela.setSize(largura, altura);
             janela.setVisible(true);
             janela.validate();
 
-            Plano plano = new PlaneadorMissao().planear(janela.motor.getEdificio());
-            janela.agir(() -> janela.motor.entrar(plano.getEntrada()));
-            while (janela.motor.getTurno() < turnos && janela.motor.getEstado() != MotorJogo.Estado.TERMINADO) {
-                janela.agir(() -> janela.jogador.jogarTurno(janela.motor));
+            if (turnos < 0) {
+                janela.painel.setEscolherDificuldade(true);
             }
-            janela.atualizar();
+            if (turnos > 0) {
+                Plano plano = new PlaneadorMissao().planear(janela.motor.getEdificio());
+                janela.motor.entrar(plano.getEntrada());
+            }
+            while (turnos > 0 && janela.motor.getTurno() < turnos && janela.motor.getEstado() != MotorJogo.Estado.TERMINADO) {
+                janela.jogador.jogarTurno(janela.motor);
+            }
+            for (String frase : janela.motor.consumirRelato()) {
+                janela.lateral.registar(frase);
+            }
+            janela.motor.consumirEventos();
+            janela.cena.sincronizar(janela.motor);
+            janela.cena.assentar();
+            janela.cena.avancar(400);
+            janela.cena.assentar();
+            janela.atualizarBotoes();
+
+            if (ms > 0 && turnos > 0 && janela.motor.getEstado() != MotorJogo.Estado.TERMINADO) {
+                janela.agir(() -> janela.jogador.jogarTurno(janela.motor));
+                for (double t = 0; t < ms; t += 16) {
+                    janela.cena.avancar(16);
+                }
+            } else {
+                janela.cena.avancar(800);
+            }
             janela.getContentPane().validate();
+            janela.painel.assentarCamera();
 
             BufferedImage imagem = new BufferedImage(largura, altura, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = imagem.createGraphics();
