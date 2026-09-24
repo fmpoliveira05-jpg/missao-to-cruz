@@ -1,0 +1,36 @@
+apply plugin: 'application'
+
+description = 'Interface gráfica (Swing) do simulador'
+
+dependencies {
+    implementation project(':jogo')
+}
+
+application {
+    mainClass = 'tocruz.gui.JanelaMissao'
+}
+
+// A missão de exemplo vai dentro do .jar, para a janela abrir logo com um mapa.
+processResources {
+    from("${rootDir}/app/missoes") {
+        include 'missao-exemplo.json'
+    }
+}
+
+test {
+    // Os testes desenham os painéis numa imagem, sem abrir janelas.
+    systemProperty 'java.awt.headless', 'true'
+}
+
+// `./gradlew :gui:jar` gera um .jar executável com todas as dependências.
+jar {
+    dependsOn configurations.runtimeClasspath
+    archiveFileName = 'missao-to-cruz-gui.jar'
+    manifest {
+        attributes 'Main-Class': 'tocruz.gui.JanelaMissao'
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
