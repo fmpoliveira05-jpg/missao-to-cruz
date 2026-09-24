@@ -88,6 +88,15 @@ public abstract class Personagem {
     }
 
     /**
+     * Altera o poder de ataque (usado pelos níveis de dificuldade).
+     *
+     * @param poder novo poder
+     */
+    protected void setPoder(long poder) {
+        this.poder = poder;
+    }
+
+    /**
      * Retorna o identificador único da personagem.
      *
      * @return O identificador único da personagem.

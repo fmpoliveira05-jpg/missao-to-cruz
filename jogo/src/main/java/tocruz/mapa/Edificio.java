@@ -324,6 +324,49 @@ public class Edificio implements EdificoInt {
     }
 
     /**
+     * Caminho com menos ligações entre duas divisões (pesquisa em largura), sem olhar aos inimigos.
+     * É o caminho que um inimigo faz quando vai ao encontro do Tó Cruz.
+     *
+     * @param origem divisão de partida
+     * @param destino divisão de chegada
+     * @return as divisões do caminho, da origem ao destino (vazio se não houver caminho)
+     */
+    public ArrayUnorderedADT<Divisao> caminhoEmLigacoes(Divisao origem, Divisao destino) {
+        ArrayUnorderedADT<Divisao> visitadas = new ArrayUnordered<>();
+        ArrayUnorderedADT<Integer> anterior = new ArrayUnordered<>();
+        QueueADT<Integer> fila = new LinkedQueue<>();
+        visitadas.addToRear(origem);
+        anterior.addToRear(-1);
+        fila.enqueue(0);
+
+        int encontrado = -1;
+        while (!fila.isEmpty() && encontrado < 0) {
+            int indice = fila.dequeue();
+            Divisao atual = visitadas.find(indice);
+            if (atual.equals(destino)) {
+                encontrado = indice;
+            } else {
+                Iterator<Divisao> vizinhos = getNextDivisoes(atual);
+                while (vizinhos.hasNext()) {
+                    Divisao vizinho = vizinhos.next();
+                    if (!visitadas.contains(vizinho)) {
+                        visitadas.addToRear(vizinho);
+                        anterior.addToRear(indice);
+                        fila.enqueue(visitadas.size() - 1);
+                    }
+                }
+            }
+        }
+
+        // O caminho reconstrói-se do destino para trás, inserindo cada divisão à frente.
+        ArrayUnorderedADT<Divisao> caminho = new ArrayUnordered<>();
+        for (int i = encontrado; i >= 0; i = anterior.find(i)) {
+            caminho.addToFront(visitadas.find(i));
+        }
+        return caminho;
+    }
+
+    /**
      * Desenha o mapa do edifício, exibindo as suas divisões e conexões.
      */
     public void drawMapa() {

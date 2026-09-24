@@ -32,6 +32,14 @@ import tocruz.personagens.ToCruz;
  *   (cenário 3). Se o Tó Cruz eliminar todos os inimigos da divisão, o turno termina sem esta fase.</li>
  * </ol>
  *
+ * <p>No nível {@link Dificuldade#ELITE}, um inimigo que vá ao encontro do Tó Cruz cai numa
+ * emboscada: o Tó Cruz ouviu-o chegar e dispara primeiro. Apanhar o alvo dispara um alarme: o Tó
+ * Cruz tem o número de turnos do caminho mais curto até uma saída mais
+ * {@link Dificuldade#FOLGA_ALARME} para sair.</p>
+ *
+ * <p>Cada acontecimento fica registado duas vezes: como frase ({@link #consumirRelato()}) e como
+ * {@link Evento} ({@link #consumirEventos()}), que a interface gráfica usa para as animações.</p>
+ *
  * @author Francisco Oliveira
  */
 public class MotorJogo {
@@ -59,18 +67,32 @@ public class MotorJogo {
     }
 
     private final Edificio edificio;
+    private final Dificuldade dificuldade;
     private final ToCruz toCruz;
     private final MovimentoInimigos movimento;
     private final QueueADT<Divisao> trajeto;
     private final UnorderedListADT<Inimigo> inimigosMortos;
 
     private UnorderedListADT<String> relato;
+    private UnorderedListADT<Evento> eventos;
     private Estado estado;
     private Divisao atual;
     private ItemCura kitPorDecidir;
     private boolean faseInimigosPendente;
     private boolean sucesso;
     private int turno;
+    /** Turno até ao qual o Tó Cruz tem de sair (-1 enquanto não houver alarme). */
+    private int turnoLimite = -1;
+
+    /**
+     * Cria um motor com as regras do enunciado (nível Agente).
+     *
+     * @param edificio edifício da simulação (deve ser uma cópia do edifício da missão)
+     * @param aleatorio gerador usado no movimento dos inimigos
+     */
+    public MotorJogo(Edificio edificio, Random aleatorio) {
+        this(edificio, aleatorio, Dificuldade.AGENTE);
+    }
 
     /**
      * Cria um motor para um edifício. O edifício é alterado durante o jogo, por isso deve ser uma
@@ -78,15 +100,28 @@ public class MotorJogo {
      *
      * @param edificio edifício da simulação
      * @param aleatorio gerador usado no movimento dos inimigos
+     * @param dificuldade nível de dificuldade
      */
-    public MotorJogo(Edificio edificio, Random aleatorio) {
+    public MotorJogo(Edificio edificio, Random aleatorio, Dificuldade dificuldade) {
         this.edificio = edificio;
+        this.dificuldade = dificuldade;
         this.toCruz = new ToCruz();
-        this.movimento = new MovimentoInimigos(aleatorio);
+        this.movimento = new MovimentoInimigos(aleatorio, dificuldade);
         this.trajeto = new LinkedQueue<>();
         this.inimigosMortos = new LinearLinkedUnorderedList<>();
         this.relato = new LinearLinkedUnorderedList<>();
+        this.eventos = new LinearLinkedUnorderedList<>();
         this.estado = Estado.ESCOLHER_ENTRADA;
+
+        if (dificuldade.getFatorPoder() != 1.0) {
+            Iterator<Divisao> divisoes = edificio.IteratorMapa();
+            while (divisoes.hasNext()) {
+                for (Inimigo inimigo : divisoes.next().getInimigos()) {
+                    inimigo.ajustarPoder(dificuldade.getFatorPoder());
+                }
+            }
+            edificio.atualizarCustos();
+        }
     }
 
     // ------------------------------------------------------------------ consultas
@@ -94,6 +129,11 @@ public class MotorJogo {
     /** @return edifício da simulação */
     public Edificio getEdificio() {
         return edificio;
+    }
+
+    /** @return nível de dificuldade */
+    public Dificuldade getDificuldade() {
+        return dificuldade;
     }
 
     /** @return o Tó Cruz */
@@ -126,6 +166,16 @@ public class MotorJogo {
         return kitPorDecidir;
     }
 
+    /** @return se o alarme está a tocar */
+    public boolean isAlarmeAtivo() {
+        return turnoLimite >= 0;
+    }
+
+    /** @return turnos que faltam para o alarme acabar, ou -1 se não houver alarme */
+    public int getTurnosParaFugir() {
+        return turnoLimite < 0 ? -1 : Math.max(0, turnoLimite - turno);
+    }
+
     /** @return cópia do percurso feito pelo Tó Cruz */
     public QueueADT<Divisao> getTrajeto() {
         QueueADT<Divisao> copia = new LinkedQueue<>();
@@ -152,6 +202,17 @@ public class MotorJogo {
         UnorderedListADT<String> atualRelato = this.relato;
         this.relato = new LinearLinkedUnorderedList<>();
         return atualRelato;
+    }
+
+    /**
+     * Devolve os eventos acumulados desde a última chamada, pela ordem em que aconteceram.
+     *
+     * @return eventos para animar
+     */
+    public UnorderedListADT<Evento> consumirEventos() {
+        UnorderedListADT<Evento> atuais = this.eventos;
+        this.eventos = new LinearLinkedUnorderedList<>();
+        return atuais;
     }
 
     /** @return divisões por onde o Tó Cruz pode entrar ou sair */
@@ -227,7 +288,9 @@ public class MotorJogo {
         estado = Estado.A_JOGAR;
         entrada.addToCruz(toCruz);
         atual = entrada;
+        eventos.addToRear(new Evento(Evento.Tipo.ENTRADA, null, null, entrada.getName(), null, 0, toCruz.getVida()));
         chegarA(entrada);
+        verificarAlarme();
     }
 
     /**
@@ -246,10 +309,14 @@ public class MotorJogo {
             throw new IllegalArgumentException("A divisão " + destino.getName() + " não é vizinha de " + atual.getName() + ".");
         }
         turno++;
+        Divisao origem = atual;
         atual.removeToCruz();
         destino.addToCruz(toCruz);
         atual = destino;
+        eventos.addToRear(new Evento(Evento.Tipo.MOVIMENTO_TO, null, origem.getName(), destino.getName(),
+                new String[]{origem.getName(), destino.getName()}, 0, toCruz.getVida()));
         chegarA(destino);
+        verificarAlarme();
     }
 
     /**
@@ -271,6 +338,7 @@ public class MotorJogo {
             // Inimigos eliminados: o turno termina sem movimento dos inimigos.
             tratarAlvoEItem(false);
         }
+        verificarAlarme();
     }
 
     /**
@@ -284,9 +352,12 @@ public class MotorJogo {
         }
         turno++;
         long antes = toCruz.getVida();
-        toCruz.usarKit();
+        ItemCura kit = toCruz.usarKit();
         relato.addToRear("Turno " + turno + ": o Tó Cruz usou um kit da mochila: " + antes + " → " + toCruz.getVida() + " de vida.");
+        eventos.addToRear(new Evento(Evento.Tipo.KIT_USADO, null, atual.getName(), atual.getName(), null,
+                kit.getVida_recuperada(), toCruz.getVida()));
         faseInimigos();
+        verificarAlarme();
     }
 
     /**
@@ -300,6 +371,7 @@ public class MotorJogo {
         turno++;
         relato.addToRear("Turno " + turno + ": o Tó Cruz ficou em " + atual.getName() + ".");
         faseInimigos();
+        verificarAlarme();
     }
 
     /**
@@ -318,12 +390,16 @@ public class MotorJogo {
                 long antes = toCruz.getVida();
                 toCruz.usarItem(kit);
                 relato.addToRear("Usou o kit: " + antes + " → " + toCruz.getVida() + " de vida.");
+                eventos.addToRear(new Evento(Evento.Tipo.KIT_USADO, null, atual.getName(), atual.getName(), null,
+                        kit.getVida_recuperada(), toCruz.getVida()));
                 break;
             }
             case GUARDAR:
                 toCruz.guardarKit(kit);
                 relato.addToRear("Guardou o kit de " + kit.getVida_recuperada() + " na mochila ("
                         + toCruz.getMochila().size() + "/" + PlaneadorMissao.CAPACIDADE_MOCHILA + ").");
+                eventos.addToRear(new Evento(Evento.Tipo.KIT_GUARDADO, null, atual.getName(), atual.getName(), null,
+                        kit.getVida_recuperada(), toCruz.getVida()));
                 break;
             default:
                 relato.addToRear("Deixou o kit na divisão.");
@@ -334,6 +410,7 @@ public class MotorJogo {
         if (faseInimigosPendente) {
             faseInimigos();
         }
+        verificarAlarme();
     }
 
     /**
@@ -350,6 +427,7 @@ public class MotorJogo {
         } else {
             relato.addToRear("O Tó Cruz saiu do edifício sem o alvo. Missão falhada.");
         }
+        eventos.addToRear(new Evento(Evento.Tipo.SAIDA, null, atual.getName(), null, null, 0, toCruz.getVida()));
         terminar(toCruz.isColectedAlvo());
     }
 
@@ -450,6 +528,10 @@ public class MotorJogo {
         if (atual.getAlvo() != null && !toCruz.isColectedAlvo()) {
             atual.ToCruzGetAlvo();
             relato.addToRear("O Tó Cruz tem o alvo (" + atual.getAlvo().getNome() + "). Agora tem de sair com vida.");
+            eventos.addToRear(new Evento(Evento.Tipo.ALVO, atual.getAlvo().getNome(), atual.getName(), atual.getName(), null, 0, toCruz.getVida()));
+            if (dificuldade.temAlarme()) {
+                dispararAlarme();
+            }
         }
 
         boolean aDecidir = false;
@@ -459,6 +541,8 @@ public class MotorJogo {
                 long antes = toCruz.getVida();
                 toCruz.usarItem(item);
                 relato.addToRear("Vestiu um colete: " + antes + " → " + toCruz.getVida() + " de vida.");
+                eventos.addToRear(new Evento(Evento.Tipo.COLETE, null, atual.getName(), atual.getName(), null,
+                        item.getVida_recuperada(), toCruz.getVida()));
             } else if (toCruz.getVida() < PlaneadorMissao.VIDA_INICIAL || !toCruz.mochilaIsFull()) {
                 kitPorDecidir = item;
                 estado = Estado.DECIDIR_KIT;
@@ -474,10 +558,62 @@ public class MotorJogo {
         }
     }
 
+    /**
+     * O alarme dá ao Tó Cruz os turnos do caminho mais curto até uma saída, mais uma folga.
+     */
+    private void dispararAlarme() {
+        int maisPerto = Integer.MAX_VALUE;
+        for (Divisao saida : getEntradas()) {
+            int ligacoes = edificio.caminhoEmLigacoes(atual, saida).size() - 1;
+            if (ligacoes >= 0) {
+                maisPerto = Math.min(maisPerto, ligacoes);
+            }
+        }
+        int turnos = (maisPerto == Integer.MAX_VALUE ? 0 : maisPerto) + Dificuldade.FOLGA_ALARME;
+        turnoLimite = turno + turnos;
+        relato.addToRear("ALARME! O Tó Cruz tem " + turnos + " turnos para sair do edifício.");
+        eventos.addToRear(new Evento(Evento.Tipo.ALARME, null, atual.getName(), null, null, turnos, toCruz.getVida()));
+    }
+
+    /**
+     * Com o alarme a tocar, a missão falha se os turnos acabarem e o Tó Cruz não puder sair já.
+     */
+    private void verificarAlarme() {
+        if (estado == Estado.TERMINADO || turnoLimite < 0) {
+            return;
+        }
+        boolean passou = turno > turnoLimite;
+        boolean semTempo = turno == turnoLimite && estado == Estado.A_JOGAR && !podeSair();
+        if (passou || semTempo) {
+            relato.addToRear("O tempo acabou: chegaram reforços e o Tó Cruz ficou encurralado. Missão falhada.");
+            eventos.addToRear(new Evento(Evento.Tipo.TEMPO_ESGOTADO, null, atual.getName(), null, null, 0, toCruz.getVida()));
+            terminar(false);
+        }
+    }
+
     private void ataqueDoToCruz() {
+        int total = atual.getInimigos().size();
+        Inimigo[] alvos = new Inimigo[total];
+        long[] vidaAntes = new long[total];
+        int i = 0;
+        for (Inimigo inimigo : atual.getInimigos()) {
+            alvos[i] = inimigo;
+            vidaAntes[i] = inimigo.getVida();
+            i++;
+        }
+
         int mortosAntes = inimigosMortos.size();
         atual.attackToCruz(inimigosMortos);
         edificio.atualizarCustoEntrada(atual);
+
+        for (int j = 0; j < total; j++) {
+            long depois = Math.max(0, alvos[j].getVida());
+            eventos.addToRear(new Evento(Evento.Tipo.ATAQUE_TO, alvos[j].getNome(), atual.getName(), atual.getName(), null,
+                    vidaAntes[j] - depois, depois));
+            if (depois == 0) {
+                eventos.addToRear(new Evento(Evento.Tipo.INIMIGO_ELIMINADO, alvos[j].getNome(), atual.getName(), atual.getName(), null, 0, 0));
+            }
+        }
 
         int mortos = inimigosMortos.size() - mortosAntes;
         StringBuilder texto = new StringBuilder("O Tó Cruz atacou");
@@ -498,7 +634,9 @@ public class MotorJogo {
         faseInimigosPendente = false;
 
         for (Inimigo inimigo : atual.getInimigos()) {
-            sofrerAtaque(inimigo);
+            if (estado != Estado.TERMINADO) {
+                sofrerAtaque(inimigo);
+            }
         }
         if (estado == Estado.TERMINADO) {
             return;
@@ -509,24 +647,48 @@ public class MotorJogo {
             jaNaDivisao.addToRear(inimigo);
         }
 
-        for (String frase : movimento.moverInimigos(edificio)) {
-            relato.addToRear(frase);
+        UnorderedListADT<String> perseguidores = new LinearLinkedUnorderedList<>();
+        for (Evento evento : movimento.moverInimigos(edificio, atual, isAlarmeAtivo())) {
+            eventos.addToRear(evento);
+            if (evento.getTipo() == Evento.Tipo.PERSEGUICAO) {
+                perseguidores.addToRear(evento.getPersonagem());
+                relato.addToRear(evento.getPersonagem() + " ouviu o Tó Cruz e avançou de " + evento.getOrigem()
+                        + " para " + evento.getDestino() + ".");
+            } else {
+                relato.addToRear(evento.getPersonagem() + " passou de " + evento.getOrigem() + " para " + evento.getDestino() + ".");
+            }
         }
 
+        boolean emboscada = false;
         for (Inimigo inimigo : atual.getInimigos()) {
             if (!jaNaDivisao.contains(inimigo) && estado != Estado.TERMINADO) {
-                relato.addToRear(inimigo.getNome() + " entrou em " + atual.getName() + " e atacou primeiro.");
-                sofrerAtaque(inimigo);
+                if (perseguidores.contains(inimigo.getNome())) {
+                    // Nível Elite: o Tó Cruz ouviu-o aproximar-se e estava à espera.
+                    relato.addToRear(inimigo.getNome() + " entrou em " + atual.getName() + ", mas o Tó Cruz estava à espera.");
+                    emboscada = true;
+                } else {
+                    relato.addToRear(inimigo.getNome() + " entrou em " + atual.getName() + " e atacou primeiro.");
+                    sofrerAtaque(inimigo);
+                }
+            }
+        }
+        if (emboscada && estado != Estado.TERMINADO && atual.haveInimigo()) {
+            ataqueDoToCruz();
+            if (!emCombate()) {
+                tratarAlvoEItem(false);
             }
         }
     }
 
     private void sofrerAtaque(Inimigo inimigo) {
         long vida = Math.max(0, toCruz.getVida() - inimigo.getPoder());
+        long dano = toCruz.getVida() - vida;
         toCruz.setVida(vida);
         relato.addToRear(inimigo.getNome() + " atacou: o Tó Cruz ficou com " + vida + " de vida.");
+        eventos.addToRear(new Evento(Evento.Tipo.ATAQUE_INIMIGO, inimigo.getNome(), atual.getName(), atual.getName(), null, dano, vida));
         if (toCruz.isDead()) {
             relato.addToRear("O Tó Cruz morreu. Missão falhada.");
+            eventos.addToRear(new Evento(Evento.Tipo.MORTE, null, atual.getName(), null, null, 0, 0));
             terminar(false);
         }
     }

@@ -102,4 +102,13 @@ public class Inimigo extends Personagem {
     public int hashCode() {
         return super.hashCode();
     }
+
+    /**
+     * Ajusta o poder do inimigo ao nível de dificuldade (nunca fica abaixo de 1).
+     *
+     * @param fator fator a aplicar ao poder atual
+     */
+    public void ajustarPoder(double fator) {
+        setPoder(Math.max(1, Math.round(getPoder() * fator)));
+    }
 }
