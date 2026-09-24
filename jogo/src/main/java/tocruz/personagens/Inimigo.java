@@ -12,6 +12,13 @@ package tocruz.personagens;
 public class Inimigo extends Personagem {
 
     /**
+     * Nome da divisão que o inimigo protege. O enunciado limita os movimentos de cada inimigo às
+     * divisões a uma distância máxima de duas ligações desta. Pode ser {@code null} (inimigos criados
+     * nos testes), caso em que o inimigo se pode mover livremente.
+     */
+    private String divisaoGuardada;
+
+    /**
      * Construtor da classe Inimigo.
      *
      * @param nome  Nome do inimigo.
@@ -19,6 +26,18 @@ public class Inimigo extends Personagem {
      */
     public Inimigo(String nome, long poder) {
         super(nome, poder);
+    }
+
+    /**
+     * Construtor usado na importação: o inimigo fica associado à divisão que protege.
+     *
+     * @param nome            Nome do inimigo.
+     * @param poder           Poder do inimigo.
+     * @param divisaoGuardada Nome da divisão que protege.
+     */
+    public Inimigo(String nome, long poder, String divisaoGuardada) {
+        super(nome, poder);
+        this.divisaoGuardada = divisaoGuardada;
     }
 
     /**
@@ -32,6 +51,23 @@ public class Inimigo extends Personagem {
      */
     public Inimigo(int id_personagem, String nome, long vida, long poder) {
         super(id_personagem, nome, vida, poder);
+    }
+
+    /**
+     * Cria uma cópia independente de outro inimigo (mesmo id, vida, poder e divisão guardada).
+     *
+     * @param outro inimigo a copiar
+     */
+    public Inimigo(Inimigo outro) {
+        super(outro.getId_personagem(), outro.getNome(), outro.getVida(), outro.getPoder());
+        this.divisaoGuardada = outro.divisaoGuardada;
+    }
+
+    /**
+     * @return nome da divisão que o inimigo protege, ou {@code null} se não tiver uma
+     */
+    public String getDivisaoGuardada() {
+        return divisaoGuardada;
     }
 
     /**

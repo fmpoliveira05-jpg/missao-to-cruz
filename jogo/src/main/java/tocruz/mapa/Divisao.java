@@ -122,7 +122,7 @@ public class Divisao implements Comparable, IteracoesInimigo, IteracoesToCruz, D
 
         UnorderedListADT<Inimigo> tempListaInimigos = new LinearLinkedUnorderedList<>();
         for (Inimigo inimigo : inimigos) {
-            Inimigo tempInimigo = new Inimigo(inimigo.getId_personagem(), inimigo.getNome(), inimigo.getVida(), inimigo.getPoder());
+            Inimigo tempInimigo = new Inimigo(inimigo);
             tempListaInimigos.addToRear(tempInimigo);
         }
         this.inimigos = tempListaInimigos;
@@ -194,7 +194,6 @@ public class Divisao implements Comparable, IteracoesInimigo, IteracoesToCruz, D
      */
     public void addToCruz(ToCruz toCruz) {
         this.toCruz = toCruz;
-        System.out.println("O To Cruz moveu-se para a divisão: " + this.name);
     }
 
     /**
@@ -232,7 +231,7 @@ public class Divisao implements Comparable, IteracoesInimigo, IteracoesToCruz, D
         try {
             inimigo1 = this.inimigos.remove(inimigo);
         } catch (EmptyCollectionException | NullPointerException e) {
-            System.out.println(e.getMessage());
+            // O inimigo não está nesta divisão: devolve null.
         }
 
         return inimigo1;
@@ -348,13 +347,8 @@ public class Divisao implements Comparable, IteracoesInimigo, IteracoesToCruz, D
         long vidaTo = toCruz.getVida() - inimigo.getPoder();
         toCruz.setVida(vidaTo);
 
-        System.out.println("O imimigo " + inimigo.getNome() + " atacou o To Cruz");
-
         if (toCruz.isDead()) {
-            System.out.println("O inimigo " + inimigo.getNome() + " matou o To Cruz");
             toCruz.setVida(0);
-        } else {
-            System.out.println("To Cruz resiste ao ataque e fica com " + vidaTo + " HP");
         }
     }
 
@@ -365,7 +359,6 @@ public class Divisao implements Comparable, IteracoesInimigo, IteracoesToCruz, D
     public void ToCruzGetAlvo() {
         this.alvo.setAtinigido(true);
         toCruz.setColectedAlvo(true);
-        System.out.println("To Cruz esta com o alvo, agora so falta sair do edificio com vida");
     }
 
     /**
@@ -378,16 +371,12 @@ public class Divisao implements Comparable, IteracoesInimigo, IteracoesToCruz, D
         Iterator<Inimigo> iterator = this.inimigos.iterator();
         UnorderedListADT<Inimigo> inimigosDead = new LinearLinkedUnorderedList<>();
 
-        System.out.println("Turno do To Cruz atacar!");
         while (iterator.hasNext()) {
             Inimigo inimigo = iterator.next();
             inimigo.setVida(inimigo.getVida() - this.toCruz.getPoder());
 
             if (inimigo.isDead()) {
-                System.out.println("O To Cruz matou o inimigo " + inimigo.getNome());
                 inimigosDead.addToRear(inimigo);
-            } else {
-                System.out.println("O inimigo " + inimigo.getNome() + " resitiu ao ataque do To Cruz e ficou com: " + inimigo.getVida() + " HP");
             }
         }
 
@@ -409,10 +398,8 @@ public class Divisao implements Comparable, IteracoesInimigo, IteracoesToCruz, D
                 this.toCruz.usarItem((ItemCura) this.item);
                 this.item.setCollected(true);
             } catch (NullPointerException e) {
-                System.out.println(e.getMessage());
+                // Divisão sem o Tó Cruz: nada a fazer.
             }
-        } else {
-            System.out.println("O item desta divisao ja foi usado anteriormente");
         }
     }
 
@@ -543,7 +530,7 @@ public class Divisao implements Comparable, IteracoesInimigo, IteracoesToCruz, D
     }
 
     /**
-     * Verifica se esta divisão é igual a outra.
+     * Verifica se esta divisão é igual a outra (duas divisões são iguais se tiverem o mesmo nome).
      *
      * @param o Outro objeto a ser comparado.
      * @return {@code true} se forem iguais, {@code false} caso contrário.
@@ -558,11 +545,10 @@ public class Divisao implements Comparable, IteracoesInimigo, IteracoesToCruz, D
             return false;
         }
 
-        if (this.id_divisao == ((Divisao) o).id_divisao || this.name == ((Divisao) o).name) {
-            return true;
-        }
-
-        return false;
+        // O nome identifica a divisão no edifício (a importação recusa nomes repetidos) e é também
+        // a base do hashCode. A versão anterior comparava as Strings com "==" e aceitava ids iguais
+        // com nomes diferentes, o que tornava equals e hashCode incoerentes.
+        return Objects.equals(this.name, ((Divisao) o).name);
     }
 
     /**

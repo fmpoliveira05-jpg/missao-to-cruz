@@ -145,13 +145,9 @@ public class ImportarMapa implements Importar {
             }
             Divisao divisao = divisaoObrigatoria((String) campo(inimigo, "divisao"), "O inimigo " + nome);
 
-            // O peso de uma divisão no grafo é o poder total dos inimigos que lá estão.
-            long poderTotal = poder;
-            for (Inimigo existente : divisao.getInimigos()) {
-                poderTotal += existente.getPoder();
-            }
-            divisao.addInimigo(new Inimigo(nome, poder));
-            edificio.updateWeight(divisao, poderTotal);
+            // O custo de entrar numa divisão é o poder total dos inimigos que lá estão.
+            divisao.addInimigo(new Inimigo(nome, poder, divisao.getName()));
+            edificio.atualizarCustoEntrada(divisao);
         }
 
         JSONArray entradas = (JSONArray) campo(json, "entradas-saidas");

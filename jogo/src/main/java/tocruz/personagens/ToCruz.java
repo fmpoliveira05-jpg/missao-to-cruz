@@ -22,6 +22,11 @@ import ed.stacks.LinkedStack;
 public class ToCruz extends Personagem implements ToCruzIt {
 
     /**
+     * Dano que o Tó Cruz causa a cada inimigo em cada ataque.
+     */
+    public static final long PODER = 40;
+
+    /**
      * Mochila para armazenar os kits de vida.
      */
     private StackADT<ItemCura> mochila;
@@ -35,7 +40,7 @@ public class ToCruz extends Personagem implements ToCruzIt {
      * Construtor padrão que inicializa a personagem ToCruz sem uma divisão inicial.
      */
     public ToCruz() {
-        super("ToCruz");
+        super("ToCruz", PODER);
         this.mochila = new LinkedStack<>();
         this.colectedAlvo = false;
     }
@@ -141,7 +146,6 @@ public class ToCruz extends Personagem implements ToCruzIt {
 
         this.setVida(nova_vida);
         item.setCollected(true);
-        System.out.println("To Cruz curou-se e ficou com: " + this.getVida() + " HP");
     }
 
     /**
@@ -168,17 +172,15 @@ public class ToCruz extends Personagem implements ToCruzIt {
         }
 
         if (this.mochila.size() == 3) {
-            System.out.println("A mochila esta cheia");
-
+            // Mochila cheia: o kit é usado logo, se a vida não estiver cheia.
             try {
                 curar(item);
             } catch (AllLifeException e) {
-                System.out.println(e.getMessage());
+                // Vida cheia: o kit fica na divisão.
             }
         } else {
             mochila.push(item);
             item.setCollected(true);
-            System.out.println("O To Cruz guardou o kit de vida com " + item.getVida_recuperada() + " HP com sucesso");
         }
 
         return item;
@@ -192,16 +194,16 @@ public class ToCruz extends Personagem implements ToCruzIt {
      */
     @Override
     public ItemCura usarKit() throws EmptyCollectionException {
-        String temp = "";
         ItemCura kit;
 
         if (!this.mochila.isEmpty()) {
-            if (this.getVida() == 100) {
+            // ">=" e não "==": com um colete a vida pode passar dos 100, e nesse caso o kit era
+            // retirado da mochila e perdido (curar() recusava-o depois de ter saído da pilha).
+            if (this.getVida() >= 100) {
                 throw new AllLifeException("Nao e possível usar o kit medico, porque a vida esta cheia");
             } else {
                 kit = mochila.pop();
                 curar(kit);
-                System.out.println("O To Cruz utilizou um kit de vida com " + kit.getVida_recuperada() + " HP");
             }
         } else {
             throw new EmptyCollectionException("O To Cruz esta sem kits de vida na mochila");
@@ -231,7 +233,7 @@ public class ToCruz extends Personagem implements ToCruzIt {
         try {
             curar(item);
         } catch (AllLifeException e) {
-            System.out.println(e.getMessage());
+            // Vida cheia: o item fica por usar.
         }
 
         return item;
