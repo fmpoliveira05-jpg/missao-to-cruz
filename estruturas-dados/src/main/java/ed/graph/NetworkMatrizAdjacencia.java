@@ -232,9 +232,22 @@ public class NetworkMatrizAdjacencia<T> extends GraphMatrizAdjacencia<T> impleme
         return resultado;
     }
 
+    /**
+     * Percorre todos os vértices pela ordem em que foram adicionados.
+     *
+     * <p>A versão anterior devolvia uma pesquisa em profundidade a partir do primeiro vértice, o que
+     * deixava de fora os vértices que ainda não tinham ligações (por exemplo, a meio da construção
+     * do grafo) e dependia da forma do grafo para a ordem.</p>
+     *
+     * @return iterador sobre todos os vértices
+     */
     @Override
     public Iterator<T> iterator() {
-        return super.iteratorDFS(this.vertices[0]);
+        UnorderedListADT<T> todos = new ArrayUnorderedList<>();
+        for (int i = 0; i < numVertices; i++) {
+            todos.addToRear(vertices[i]);
+        }
+        return todos.iterator();
     }
 
     /**
